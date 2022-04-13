@@ -1,0 +1,136 @@
+
+
+
+
+==== INPUTS ====
+
+GroupedAccount (Input):
+	- ID
+	- Accounts_list
+	- Behaviour_list:			list of behaviours adopted by community users
+	- Balance (min, max e avg):	quantitites used to determine the balance of all users
+	- Business_distribution:	list of percentage of distribution of buisnesses
+	- [Nationality_distr:		]
+	- Bank_distribution:		
+	- Avg_acct_community_dim:	avergae dimension of the known_nodes attributes for accounts in community
+	- Fan_in (min, max, avg)
+	- Fan_out (min, max, avg)
+	- Amount (min, max, avg)
+	- New_beneficiary_ratio:	percentage with which the node will do a transaction on a new account (not belonging to community)
+	- Avg_ompromising_ratio:
+
+Bank
+	- ID
+	- Compromising_ratio
+	- Launderer_ratio
+
+Patterns
+	- Num of txs
+	- Type of pattern
+	- min accounts
+	- max accounts
+	- min amount
+	- max amount
+	- min period
+	- max period
+	- same bank
+
+[Nationality]
+	- Name
+	- Risk
+
+
+
+==== ENTTIES ====
+
+Account:
+	- ID
+	- Balance
+	- Business
+	- Behaviour: 				typical pattern used for make transactions (random, forward...)
+	- [Nationality: 			nationality of the suer, used to determine the risk of the user behaviour]
+	- Bank
+	- Community: 				set of known nodes with which the account usually trade
+	- Known_nodes:				set of nodes witch which the node has send/received some transactions
+	- Avg_fan_in
+	- Avg_fan_out
+	- Min_amount
+	- Max_amount
+	- Avg_amount:				determined by a gaussian distribution on commuinty_amount
+	- New_beneficiary_ratio: 	percentage with which the node will do a transaction on a new account (not belonging to community) (reverse dependent with dimension of known_nodes)
+	- Compromising_ratio: 		ratio with which this account can become a mule
+	- Class: 					a role between NORMAL, AMLSOURCE, AMLLAYER, AMLDESTINATION
+
+Bank
+	- ID
+	- Compromising_ratio
+	- Launderer_ratio
+
+Transaction
+	- ID
+	- Originator
+	- Beneficiary
+	- Amount
+	- Timestamp
+	---------------------------------------------------------------------------------------------
+	- in_cycle
+	---------------------------------------------------------------------------------------------
+	- Class:					NORMAL, SCATTER-GATHER, GATHER-SCATTER, CYCLE, U, FORWARD, REPEATED,
+								CASH-IN, CASH-OUT, ROUNDED, FRAUD
+
+
+
+==== FEATURES ====
+
+Account:
+	- Balance
+	- Business
+	- Nationality_risk
+	- Bank
+	- New_beneficiary
+	- tx_cash_in
+	- tx_cash_out
+	- tot_cash_in
+	- tot_cash_out
+	- avg_cash_in
+	- avg_cash_out
+	- tx_count: 				number of transactions executed in that window
+	- tx_in_count: 				number of in transactions executed in that window
+	- tx_out_count: 			number of out transactions executed in that window
+	- tx_out_unique
+	- tx_in_unique
+	- tx_count_unique
+	- avg_tx_out_count
+	- avg_tx_in_count
+	- tot_amt_out: 				total amount of money transferred out in window
+	- tot_amt_in: 				total amount of money transferred in in window
+	- delta:					total_amount_in - total_amount_out
+	- medium_amt_out: 			averaged amount of money transferred out in window
+	- medium_amt_in: 			averaged amount of money transferred out in window
+	- avg_amt_out: 				averaged amount of money transferred out in history
+	- avg_amt_in: 				averaged amount of money transferred out in history
+	- [exLaunderer]
+	- repeated_amt_out_count
+	- repeated_amt_in_count
+	- tx_rounded:				number of transaction with rounded amount
+	- tx_small:					number of transactions with small amount
+	---------------------------------------------------------------------------------------------
+	- high_fan_in
+	- high_fan_out
+	- in_cycle
+	---------------------------------------------------------------------------------------------
+	- Class:					a role between NORMAL, AMLSOURCE, AMLLAYER, AMLDESTINATION
+
+
+NORMAL:							normal transaction
+SCATTER-GATHER:					cash spread among some accounts from a source and gathered together on destination account
+GATHER-SCATTER:					cash gathered by an account and then spread around other accounts
+CYCLE:							cyclic transaction
+U:								money transferred to an intermediate aacount and back to the source
+FORWARD:						money entered immediatly transferred out
+REPEATED:						small trabnsactions repeated that form a consistent amount
+CASH-IN:						large injection of fund abnormal with standard behaviour
+CASH-OUT:						large withrawal of funds w.r.t. standard behaviour
+ROUNDED:						execution of rounded amounts
+FRAUD:							execution of some-above-threshold transaction
+
