@@ -6,7 +6,9 @@ import yaml
 import pandas as pd
 import networkx as nx
 
-from src.model import *
+from src._constants import *
+from src.model.population import Population, Account, Bank, Community
+from src.model.pattern import NormalPattern, AMLPattern
 
 
 
@@ -19,20 +21,36 @@ class AMLDataGen:
         # Connection Graph
         self.g = nx.DiGraph()
 
-        # Entities
-        self.num_accounts = 0
-        self.accounts = dict()
-        self.num_launderers = 0
-        self.aml_sources = []
-        self.aml_layerer = []
-        self.aml_destinations = []
+        #
         self.banks = dict()
+        self.population = Population()
+        self.num_accounts = 0
+        self.num_launderers = 0
         self.normal_patterns = dict()
         self.ml_patterns = dict()
 
+        # Simulator Data
+        simulation_conf = self.conf['Simulation']
+        self.end_time = simulation_conf['end_time']
+        self.transactions = pd.DataFrame(columns=['Originator', 'Beneficiary', 'Amount', 'Time', 'Type'])
+
         # Input files
-        accounts_file =
+        input_files = self.conf['Input_files']
+        accounts_file = input_files['account_file']
         self.load_accounts(accounts_file)
+        bank_file = input_files['bank_file']
+        self.load_banks(bank_file)
+        communities_file = input_files['communities_file']
+        self.load_communities(communities_file)
+        normal_pattern_file = input_files['normal_pattern_file']
+        self.load_normal_patterns(normal_pattern_file)
+        aml_pattern_file = input_files['aml_pattern_file']
+        self.load_aml_patterns(aml_pattern_file)
+
+        # Output files
+        input_files = self.conf['Output_files']
+        self.accounts_out_file = input_files['account_file']
+        self.transaction_out_file = input_files['transaction_file']
 
         # Queues
         # TODO: the idea is a dict where key is start_time and item is patterns with that start time. Each time a pattern is executed, the queue is updated with the current time
@@ -49,21 +67,20 @@ class AMLDataGen:
                 balance = random.uniform(row['balance_min'], row['balance_max'])
                 business = row['business']
                 behaviours = row['behaviours']
-                bank = row['bank']
+                bank_id = row['bank_id']
                 community = None
                 avg_fan_in = random.uniform(row['fan_in_min'], row['fan_in_max'])
                 avg_fan_out = random.uniform(row['fan_out_min'], row['fan_out_max'])
                 min_amount = random.gauss(row['min_amount'], row['min_amount']/6)
                 max_amount = random.gauss(row['max_amount'], row['max_amount']/6)
                 avg_amount = random.gauss(row['avg_amount'], row['avg_amount']/6)
-                new_beneficiary_ratio = random.gauss(row['balance'], row['balance']/6)
                 compromising_ratio = random.uniform(row['compromising_ratio']-0.1, row['compromising_ratio']+0.1)
-                role = ROLES['Normal']
+                role = NORMAL
 
-                account = Account(acct_id, balance, business, behaviours, bank, community, avg_fan_in, avg_fan_out, min_amount, max_amount, avg_amount,
-                                  new_beneficiary_ratio, compromising_ratio, role)
+                account = Account(acct_id, balance, business, behaviours, bank_id, community, avg_fan_in, avg_fan_out, min_amount, max_amount, avg_amount,
+                                  compromising_ratio, role)
 
-                self.accounts[acct_id] = account
+                self.population.add_account(account)
                 acct_id += 1
 
     def load_banks(self, banks_file):
@@ -75,54 +92,43 @@ class AMLDataGen:
 
         assert sum([bank.launderer_ratio for _, bank in self.banks.items()]) == 1
 
+    def load_communities(self, communities_file):
+        communities_config = yaml.safe_load(communities_file)
+        min_community_dim = communities_file['min_community_dim']
+        max_community_dim = communities_file['max_community_dim']
 
-    def create_launderers(self, launderer_prob, launderer_dist):
-        self.num_accounts = len(self.accounts)
-        launderers_num = self.num_accounts * launderer_prob
+        # Creates nodes community
+        remaining_nodes = set(range(0, self.num_accounts))
+        community_id = 0
+        while len(remaining_nodes) != 0:
+            community_dim = random.randint(min_community_dim, max_community_dim)
+            try:
+                community_nodes = random.sample(remaining_nodes, k=community_dim)
+            except ValueError:
+                break
 
-        bank_launderer_risk_distr = [bank.launderer_ratio for _, bank in self.banks.items()]
+            # Create a community among those nodes
+            new_community = Community(community_id, community_nodes)
+            self.communities[community_id] = new_community
+            community_id += 1
 
-        # Each one is a list which contains, for each bank, the number of source/layer/dest nodes related to that bank
-        source_dist = bank_launderer_risk_distr * (launderers_num * launderer_dist[0])
-        layerer_dist = bank_launderer_risk_distr * (launderers_num * launderer_dist[1])
-        destination_dist = bank_launderer_risk_distr * (launderers_num * launderer_dist[2])
+            # Remove used nodes availability
+            remaining_nodes = remaining_nodes - set(community_nodes)
 
-        # Create dataframe from accounts. It is done to speed up the computation
-        acc_df = pd.DataFrame([acc.to_dataframe_row for _, acc in self.accounts.items()], columns=Account.get_dataframe_columns())
+        # Assign remaining nodes to communities
+        for node in remaining_nodes:
+            chosen_community = random.randint(0, len(self.communities))
+            self.communities[chosen_community].add_member(node)
 
-        # The following operations are used to remove the most active accounts. This is done by first extracting the 0.90 quantile from the avg_fan_out
-        # distribution adn then removing the account with higher avg_fan_out. Launderers does not do many transactions in order to not be bothered
-        quantile_df = acc_df[['avg_fan_out']]
-        tx_out_quant = np.quantile(quantile_df, 0.90, axis=0)
-        acc_df.drop(acc_df[acc_df['avg_fan_out'] >= tx_out_quant].index, inplace=True)
+        # Creating intra-communities connections
 
-        # For each bank are extracted sources, layers and destinations
-        for bank_id in range(0, len(bank_launderer_risk_distr)):
-            bank_users_idxs = set(acc_df[acc_df[[5] == bank_id]][[0]])
+        # Creating inter-community connections
 
-            # Set AMLSources for bank_i
-            source_ids = random.sample(bank_users_idxs, k=source_dist[bank_id])
-            for i in source_ids:
-                self.accounts[i].role = ROLES['AMLSource']
-                self.aml_sources.append(self.accounts[i].id)
+    def create_launderers(self):
 
-            # Set AMLLayer for bank_i
-            bank_users_idxs = bank_users_idxs - set(source_ids)
-            layer_ids = random.sample(bank_users_idxs, k=layerer_dist[bank_id])
-            for i in layer_ids:
-                self.accounts[i].role = ROLES['AMLLayer']
-                self.aml_layerer.append(self.accounts[i].id)
+        for _, bank in self.banks.items()
 
-            # Set AMLDestination for bank_i
-            bank_users_idxs = bank_users_idxs - set(layer_ids)
-            destination_ids = random.sample(bank_users_idxs, k=destination_dist[bank_id])
-            for i in destination_ids:
-                self.accounts[i].role = ROLES['AMLDestination']
-                self.aml_destinations.append(self.accounts[i].id)
-
-        self.num_launderers = len(self.aml_sources) + len(self.aml_layerer) + len(self.aml_destinations)
-        assert self.num_launderers in range(launderers_num*0.9, launderers_num*1.1)
-
+        self.num_launderers = self.population.create_launderers()
 
     def load_normal_patterns(self, normal_patterns_file):
         normal_patterns_df = pd.read_csv(normal_patterns_file)
@@ -137,8 +143,11 @@ class AMLDataGen:
             scheduling = row['scheduling']
             for _ in row['count']:
                 amount = random.uniform(min_amount, max_amount)
-                accounts_num = random.uniform(min_accounts, max_accounts)
-                pattern = Pattern(normal_patterns_id, pattern_type, period, amount, scheduling_type=SCHEDULING[scheduling])
+                accounts_num = random.randint(min_accounts, max_accounts)
+                accounts = random.sample(self.population.get_accounts_ids(), k=accounts_num)
+                pattern = NormalPattern(normal_patterns_id, pattern_type, period, amount, accounts, scheduling_type=scheduling)
+
+                pattern.schedule(self.end_time)
 
                 start_time = min(pattern.scheduling_times)
                 if start_time not in self.normal_queue.keys():
@@ -161,25 +170,94 @@ class AMLDataGen:
                 amount = random.uniform(min_amount, max_amount)
                 accounts_num = random.uniform(min_accounts, max_accounts)
 
-                pattern = Pattern(aml_patterns_id, pattern_type, period, amount, scheduling_type=SCHEDULING[scheduling])
+                pattern = AMLPattern(aml_patterns_id, pattern_type, period, amount, scheduling_type=scheduling)
 
                 accounts_dist = pattern.get_account_distribution(accounts_num)
                 # TODO: maybe a FIFO queue is better to distribute the roles?
-                sources = random.sample(self.aml_sources, accounts_dist[0])
+                sources = random.sample(self.population.aml_sources, accounts_dist[0])
                 pattern.add_source(sources)
-                layers = random.sample(self.aml_layerer, accounts_dist[1])
+                layers = random.sample(self.population.aml_layerer, accounts_dist[1])
                 pattern.add_layerer(layers)
-                destinations = random.sample(self.aml_destinations, accounts_dist[2])
+                destinations = random.sample(self.population.aml_destinations, accounts_dist[2])
                 pattern.add_destination(destinations)
 
-
-
+                pattern.schedule(self.end_time)
 
                 start_time = min(pattern.scheduling_times)
                 if start_time not in self.aml_queue.keys():
                     self.aml_queue[start_time] = [pattern]
                 else:
                     self.aml_queue[start_time].append(pattern)
+
+    def schedule_normal_transactions(self):
+        cash_in_requests = set()
+        for t in range(0, self.end_time):
+            for acc_id in range(0, self.population.get_accounts_num()):
+                account = self.population.get_accounts()[acc_id]
+
+                # Do a cash-in for requested users
+                if acc_id in cash_in_requests:
+                    self._schedule_cash_in(acc_id, t)
+
+                # Determine how many transactions a user can do in the instant
+                acc_avg_fan_out = account.avg_fan_out
+                min_txs_number = min(int(acc_avg_fan_out * 0.85), acc_avg_fan_out-1)
+                max_txs_number = max(int(acc_avg_fan_out * 1.15), acc_avg_fan_out+1)
+                tx_number = random.randint(min_txs_number, max_txs_number)
+                for i in range(0, tx_number):
+                    req_cash_in = self._schedule_account_tx(acc_id, t)
+                    if req_cash_in:
+                        cash_in_requests.add(req_cash_in)
+                        break
+                if account.balance
+
+
+    def _schedule_cash_in(self, account_id, time):
+        account = self.population.get_accounts()[account_id]
+        numbers = random.randint(1, 3)
+        for i in range(0, numbers):
+            amount = account.max_amount * random.randint(2, 5-numbers)
+            account.update(None, amount)
+            self.transactions.append((account_id, None, amount, time, 'Normal'))
+
+    def _schedule_account_tx(self, account_id, time):
+        originator = self.population.get_accounts()[account_id]
+        beneficiary_id, amount = originator.get_transaction()
+
+        # If beneficiary is -1 means that accounts require a new beneficiary
+        if beneficiary_id == -1:
+            available_nodes = list(self.population.get_accounts_ids().copy())
+            available_nodes.remove(originator.id)
+            beneficiary_id = random.choice(available_nodes)
+
+        outcome = originator.update(beneficiary_id, amount)
+        if outcome:
+            self.population.get_accounts()[beneficiary_id].update(originator.id, -amount)
+            self.transactions.append((originator.id, beneficiary_id, -amount, time, 'Normal'))
+
+        return outcome
+
+    def schedule_normal_patterns(self):
+        for patterns in self.normal_patterns.items():
+            for pattern in patterns:
+                pattern.schedule_tx()
+                for orig, bene, amt, time, tx_type in pattern.get_transactions():
+                    outcome = self.population.get_accounts()[orig].update(None, -amt)
+                    if outcome:
+                        self.population.get_accounts()[bene].update(None, amt)
+                        self.transactions.append((orig, bene, amt, time, tx_type))
+
+    def schedule_aml_patterns(self):
+        for patterns in self.ml_patterns.items():
+            for pattern in patterns:
+                pattern.schedule_tx()
+                for orig, bene, amt, time, tx_type in pattern.get_transactions():
+                    outcome = self.population.get_accounts()[orig].update(None, -amt)
+                    if outcome:
+                        self.population.get_accounts()[bene].update(None, amt)
+                        self.transactions.append((orig, bene, amt, time, tx_type))
+
+
 
 
 
