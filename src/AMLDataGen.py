@@ -8,7 +8,7 @@ import networkx as nx
 
 from src._constants import *
 from src.model.population import Population, Account, Bank, Community
-from src.model.pattern import NormalPattern, AMLPattern
+from src.model.pattern import GeneralPattern, StructuredPattern
 
 
 
@@ -18,14 +18,16 @@ class AMLDataGen:
         with open(_conf_file, "r") as rf:
             self.conf = yaml.safe_load(rf)
 
-        # Connection Graph
-        self.g = nx.DiGraph()
-
-        #
+        # Entities
         self.banks = dict()
         self.population = Population()
         self.num_accounts = 0
         self.num_launderers = 0
+
+        # Connection Graph
+        self.connection_graph = nx.DiGraph()
+
+        # Patterns
         self.normal_patterns = dict()
         self.ml_patterns = dict()
 
@@ -33,19 +35,6 @@ class AMLDataGen:
         simulation_conf = self.conf['Simulation']
         self.end_time = simulation_conf['end_time']
         self.transactions = pd.DataFrame(columns=['Originator', 'Beneficiary', 'Amount', 'Time', 'Type'])
-
-        # Input files
-        input_files = self.conf['Input_files']
-        accounts_file = input_files['account_file']
-        self.load_accounts(accounts_file)
-        bank_file = input_files['bank_file']
-        self.load_banks(bank_file)
-        communities_file = input_files['communities_file']
-        self.load_communities(communities_file)
-        normal_pattern_file = input_files['normal_pattern_file']
-        self.load_normal_patterns(normal_pattern_file)
-        aml_pattern_file = input_files['aml_pattern_file']
-        self.load_aml_patterns(aml_pattern_file)
 
         # Output files
         input_files = self.conf['Output_files']
@@ -57,6 +46,27 @@ class AMLDataGen:
         self.normal_queue = dict()
         self.aml_queue = dict()
 
+
+    # LOADERS
+    # ------------------------------------------
+
+    def load_all(self):
+        input_files = self.conf['Input_files']
+
+        accounts_file = input_files['account_file']
+        self.load_accounts(accounts_file)
+
+        bank_file = input_files['bank_file']
+        self.load_banks(bank_file)
+
+        communities_file = input_files['communities_file']
+        self.load_communities(communities_file)
+
+        normal_pattern_file = input_files['normal_pattern_file']
+        self.load_normal_patterns(normal_pattern_file)
+
+        aml_pattern_file = input_files['aml_pattern_file']
+        self.load_aml_patterns(aml_pattern_file)
 
 
     def load_accounts(self, accounts_file):
@@ -83,6 +93,7 @@ class AMLDataGen:
                 self.population.add_account(account)
                 acct_id += 1
 
+
     def load_banks(self, banks_file):
         bank_df = pd.read_csv(banks_file)
         bank_id = 0
@@ -91,38 +102,6 @@ class AMLDataGen:
             bank_id += 1
 
         assert sum([bank.launderer_ratio for _, bank in self.banks.items()]) == 1
-
-    def load_communities(self, communities_file):
-        communities_config = yaml.safe_load(communities_file)
-        min_community_dim = communities_file['min_community_dim']
-        max_community_dim = communities_file['max_community_dim']
-
-        # Creates nodes community
-        remaining_nodes = set(range(0, self.num_accounts))
-        community_id = 0
-        while len(remaining_nodes) != 0:
-            community_dim = random.randint(min_community_dim, max_community_dim)
-            try:
-                community_nodes = random.sample(remaining_nodes, k=community_dim)
-            except ValueError:
-                break
-
-            # Create a community among those nodes
-            new_community = Community(community_id, community_nodes)
-            self.communities[community_id] = new_community
-            community_id += 1
-
-            # Remove used nodes availability
-            remaining_nodes = remaining_nodes - set(community_nodes)
-
-        # Assign remaining nodes to communities
-        for node in remaining_nodes:
-            chosen_community = random.randint(0, len(self.communities))
-            self.communities[chosen_community].add_member(node)
-
-        # Creating intra-communities connections
-
-        # Creating inter-community connections
 
     def create_launderers(self):
 
@@ -145,7 +124,7 @@ class AMLDataGen:
                 amount = random.uniform(min_amount, max_amount)
                 accounts_num = random.randint(min_accounts, max_accounts)
                 accounts = random.sample(self.population.get_accounts_ids(), k=accounts_num)
-                pattern = NormalPattern(normal_patterns_id, pattern_type, period, amount, accounts, scheduling_type=scheduling)
+                pattern = GeneralPattern(normal_patterns_id, pattern_type, period, amount, accounts, scheduling_type=scheduling)
 
                 pattern.schedule(self.end_time)
 
@@ -170,7 +149,7 @@ class AMLDataGen:
                 amount = random.uniform(min_amount, max_amount)
                 accounts_num = random.uniform(min_accounts, max_accounts)
 
-                pattern = AMLPattern(aml_patterns_id, pattern_type, period, amount, scheduling_type=scheduling)
+                pattern = StrcturedPattern(aml_patterns_id, pattern_type, period, amount, scheduling_type=scheduling)
 
                 accounts_dist = pattern.get_account_distribution(accounts_num)
                 # TODO: maybe a FIFO queue is better to distribute the roles?
