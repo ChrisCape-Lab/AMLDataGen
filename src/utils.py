@@ -3,15 +3,17 @@ import pandas as pd
 from itertools import islice
 from random import randint
 
+from _constants import GENERAL, SCHEDULING
 
-def add_to_dict_of_list(dictionary: dict, dict_key: int, dict_item) -> None:
+
+def add_to_dict_of_list(dictionary: dict, dict_key, dict_item) -> None:
     if dict_key in dictionary.keys():
         dictionary[dict_key].append(dict_item)
     else:
         dictionary[dict_key] = list(dict_item)
 
 
-def addn_to_dict_of_list(dictionary: dict, dict_key: int, dict_items: list) -> None:
+def addn_to_dict_of_list(dictionary: dict, dict_key, dict_items: list) -> None:
     if dict_key in dictionary.keys():
         dictionary[dict_key].extend(dict_items)
     else:
@@ -27,8 +29,38 @@ def random_chunk(li, min_chunk=1, max_chunk=3):
         else:
             break
 
+
 # LOADING UTILS
 # ------------------------------------------
+
+def scheduling_string_to_const(scheduling_str: str) -> int:
+    if scheduling_str == 'Random':
+        return SCHEDULING.RANDOM
+    elif scheduling_str == 'Periodic':
+        return SCHEDULING.PERIODIC
+    elif scheduling_str == 'Instant':
+        return SCHEDULING.INSTANT
+    else:
+        raise NotImplementedError
+
+
+def pattern_string_to_const(pattern_str: str) -> int:
+    if pattern_str == 'Fan_in':
+        return GENERAL.FAN_IN
+    elif pattern_str == 'Fan_out':
+        return GENERAL.FAN_OUT
+    elif pattern_str == 'Cycle':
+        return GENERAL.CYCLE
+    elif pattern_str == 'Scatter-Gather':
+        return GENERAL.SCATTER_GATHER
+    elif pattern_str == 'Gather-Scatter':
+        return GENERAL.GATHER_SCATTER
+    elif pattern_str == 'U_Pattern':
+        return GENERAL.U
+    elif pattern_str == 'Repeated':
+        return GENERAL.REPEATED
+    elif pattern_str == 'Bipartite':
+        return GENERAL.BIPARTITE
 
 def get_degrees(deg_csv, num_v):
     """

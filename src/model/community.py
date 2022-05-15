@@ -15,7 +15,6 @@ class CommunityNode:
 
 class Community:
     def __init__(self):
-
         self.connection_graph = nx.DiGraph()
         self.communities = list()
         self.community_to_account = dict()
@@ -23,6 +22,13 @@ class Community:
 
     # GETTERS
     # ------------------------------------------
+
+    def get_nodes_ids(self):
+        nodes_ids = list()
+        for node in self.nodes:
+            nodes_ids.append(node.id)
+
+        return nodes_ids
 
     def get_sources_for(self, node_id: int) -> list:
         if self.connection_graph.is_directed():
@@ -36,6 +42,15 @@ class Community:
         else:
             return self.get_neighbours_for(node_id)
 
+    def get_random_destination_for(self, node_id: int, new_node_prop: float) -> int:
+        node_destinations = self.get_destinations_for(node_id)
+        new_destination = random.random() > new_node_prop
+        if not new_destination:
+            return random.choice(node_destinations)
+        else:
+            new_available_destinations = set(self.get_nodes_ids()) - set(node_destinations)
+            return random.choice(list(new_available_destinations))
+
     def get_neighbours_for(self, node_id: int) -> list:
         return self.connection_graph.neighbors(node_id)
 
@@ -44,8 +59,12 @@ class Community:
 
     # SETTERS
     # ------------------------------------------
+
     def add_node(self, node: Account):
         self.nodes[node.id] = CommunityNode(node.id, node.avg_tx_per_step, None)
+
+    def add_link(self, source: int, destination: int) -> None:
+        self.connection_graph.add_edge(source, destination)
 
     # INITIALIZERS
     # ------------------------------------------
