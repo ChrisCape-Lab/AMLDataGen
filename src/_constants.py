@@ -28,8 +28,8 @@ class GENERAL:
 
 class ACCOUNT:
     # Accounts Classes
-    ML = -1
-    NORMAL = 0
+    NORMAL = -1
+    ML = 0
     ML_MULE = 1
     ML_SOURCE = 2
     ML_LAYER = 3
@@ -66,23 +66,6 @@ class SCHEDULING:
     INSTANT = 0
     PERIODIC = 1
     RANDOM = 2
-
-
-# AMOUNT RATIO CATEGORIES
-NORMAL_AMT = 0
-ROUNDED = 1
-UNDER_THRESH = 2
-
-
-
-
-
-
-
-# 'Hardcoded' values
-REPEATED_MIN = 8
-REPEATED_MAX = 12
-
 
 
 if __name__ == "__main__":

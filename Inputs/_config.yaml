@@ -14,6 +14,8 @@ Output_files:
   output_folder: "Outputs/"
   account_file: "Accounts.csv"
   transaction_file: "Transactions.csv"
+  normal_patterns_file: "Normal_Patterns.csv"
+  ml_patterns_file: "ML_Patterns.csv"
 
 
 

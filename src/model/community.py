@@ -1,8 +1,11 @@
 import random
 import networkx as nx
+import logging
 
 from src.model.population import Account
 from src.utils import get_degrees
+
+import src._constants as _c
 from src._variables import COMMUNITY
 
 
@@ -25,7 +28,7 @@ class Community:
 
     def get_nodes_ids(self):
         nodes_ids = list()
-        for node in self.nodes:
+        for _, node in self.nodes.items():
             nodes_ids.append(node.id)
 
         return nodes_ids
@@ -57,6 +60,20 @@ class Community:
     def get_unknown_nodes_for(self, node_id: int) -> list:
         return list(set(self.connection_graph.nodes()) - set(self.get_destinations_for(node_id)))
 
+    def get_fan_in_list(self):
+        fan_in_list = list()
+        for node_id in self.get_nodes_ids():
+            fan_in_list.append(self.get_sources_for(node_id))
+
+        return fan_in_list
+
+    def get_fan_out_list(self):
+        fan_out_list = list()
+        for node_id in self.get_nodes_ids():
+            fan_out_list.append(self.get_destinations_for(node_id))
+
+        return fan_out_list
+
     # SETTERS
     # ------------------------------------------
 
@@ -64,10 +81,24 @@ class Community:
         self.nodes[node.id] = CommunityNode(node.id, node.avg_tx_per_step, None)
 
     def add_link(self, source: int, destination: int) -> None:
+        if destination in self.get_destinations_for(source):
+            return
+
         self.connection_graph.add_edge(source, destination)
 
     # INITIALIZERS
     # ------------------------------------------
+    def create_community(self, community_type: int = _c.COMMUNITY.FULL_RANDOM, directed: bool = True, deg_file: str = ''):
+        if community_type == _c.COMMUNITY.FULL_RANDOM:
+            self.create_full_random_connections(directed)
+        elif community_type == _c.COMMUNITY.RANDOM:
+            self.create_random_communities(directed)
+        elif community_type == _c.COMMUNITY.STRUCTURED_RANDOM:
+            self.create_random_structured_communities(directed)
+        elif community_type == _c.COMMUNITY.FROM_FILE:
+            self.load_communities_from_deg_file(deg_file)
+        else:
+            raise NotImplementedError
 
     def create_full_random_connections(self, directed=True):
         """Creates a fully random connection among accounts, ignoring both business and fan_out"""
@@ -94,7 +125,6 @@ class Community:
                 self.connection_graph.add_edge(known_node.id, known_node)
 
     def create_random_structured_communities(self, directed=False):
-
         # Creates nodes community
         remaining_nodes = set(range(0, len(self.nodes)))
         community_id = 0
@@ -167,11 +197,11 @@ class Community:
 
         for idx, (_src, _dst) in enumerate(_g.edges()):
             if _src == _dst:
-                logger.warning("Self loop from/to %d at %d" % (_src, idx))
+                logging.warning("Self loop from/to %d at %d" % (_src, idx))
 
         self.connection_graph = _g
 
-        logger.info("Add %d base transactions" % self.connection_graph.number_of_edges())
+        logging.info("Add %d base transactions" % self.connection_graph.number_of_edges())
         nodes = self.connection_graph.nodes()
 
         edge_id = 0

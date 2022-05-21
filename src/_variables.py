@@ -2,36 +2,41 @@
 This files contains a bunch of 'variables' that can be set through the config file. From the program point of view they are basically constants but
 are initially set from the config file
 """
-import src._constants as c
+import src._constants as _c
 
 
 class SIMULATION:
-    END_TIME = 54
-    LAUNDERERS_CREATION_MODE = c.POPULATION.LAUNDERER_CREATION_SIMPLE_MODE
+    DEF_END_TIME = 54
+    DEF_LAUNDERERS_CREATION_MODE = _c.POPULATION.LAUNDERER_CREATION_SIMPLE_MODE
+    DEF_ALLOW_RANDOM_TXS = True
 
 
 class ACCOUNT:
+    # Default variance for the balance limits
     DEF_BALANCE_LIMIT_VARIANCE = 0.05
+
+    # Default variance for the avg transactions per time
     DEF_AVG_TX_PER_TIME_VARIANCE = 0.5
+
+    # Default values for cash in/out transactions
     DEF_CASH_IN_PROB = 0.75
     DEF_CASH_OUT_PROB = 0.85
-
     CASH_TX_MIN = 4
     CASH_TX_MAX = 8
 
-    DEF_NEW_BENE_RATIO = 0.1
-    RETAIL_NEW_BENE_RATIO = 0.1
-    CORPORATE_NEW_BENE_RATIO = 0.05
+    # Default values for the new beneficiary ratios
+    __DEF_NEW_BENE_RATIO = 0.1
+    __DEF_RETAIL_NEW_BENE_RATIO = 0.1
+    __DEF_CORPORATE_NEW_BENE_RATIO = 0.05
+    NEW_BENE_RATIOS = {None: __DEF_NEW_BENE_RATIO, _c.ACCOUNT.RETAIL: __DEF_RETAIL_NEW_BENE_RATIO,
+                       _c.ACCOUNT.CORPORATE: __DEF_CORPORATE_NEW_BENE_RATIO}
 
-    DEFAULT_NEW_NEIGHBOUR_RATIO = 0.5
-    RETAIL_NEW_NEIGHBOUR_RATIO = 0.5
-    CORPORATE_NEW_NEIGHBOUR_RATIO = 0.4
-
-    # Accounts new beneficiary and neighbours array ratios
-    NEW_BENE_RATIOS = {None: DEF_NEW_BENE_RATIO, c.ACCOUNT.RETAIL: RETAIL_NEW_BENE_RATIO,
-                       c.ACCOUNT.CORPORATE: CORPORATE_NEW_BENE_RATIO}
-    NEW_NEIGHBOUR_RATIOS = {None: DEFAULT_NEW_NEIGHBOUR_RATIO, c.ACCOUNT.RETAIL: RETAIL_NEW_NEIGHBOUR_RATIO,
-                            c.ACCOUNT.CORPORATE: CORPORATE_NEW_NEIGHBOUR_RATIO}
+    # Default values for the new neighbour ratios
+    __DEF_NEW_NEIGHBOUR_RATIO = 0.5
+    __DEF_RETAIL_NEW_NEIGHBOUR_RATIO = 0.5
+    __DEF_CORPORATE_NEW_NEIGHBOUR_RATIO = 0.4
+    NEW_NEIGHBOUR_RATIOS = {None: __DEF_NEW_NEIGHBOUR_RATIO, _c.ACCOUNT.RETAIL: __DEF_RETAIL_NEW_NEIGHBOUR_RATIO,
+                            _c.ACCOUNT.CORPORATE: __DEF_CORPORATE_NEW_NEIGHBOUR_RATIO}
 
 
 class POPULATION:
@@ -57,8 +62,12 @@ class COMMUNITY:
     DEF_MIN_COMM_SIZE = 30
     DEF_MAX_COMM_SIZE = 100
 
+    DEF_COMMUNITY_TYPE = _c.COMMUNITY.FULL_RANDOM
+
 
 class PATTERN:
+    REPEATED_MIN = 4
+    REPEATED_MAX = 8
     BIPARTITE_MIN_SOURCES = 0.2
     BIPARTITE_MAX_SOURCES = 0.3
     BIPARTITE_MIN_DESTINATIONS = 0.2

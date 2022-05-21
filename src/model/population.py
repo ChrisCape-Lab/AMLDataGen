@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import pandas as pd
+import logging
 
 import src._constants as _c
 import src._variables as _v
@@ -19,7 +20,7 @@ class Account:
     def __init__(self, acct_id, balance, balance_limit_percentage, business, behaviours, bank_id, avg_tx_per_step,
                  min_amount, max_amount, compromising_ratio, role):
         # Unique ID that define the account
-        self.id = acct_id
+        self.id = int(acct_id)
 
         # Type of business of the account, one among RETAIL or CORPORATE
         self.business = _c.ACCOUNT.BUSINESS_TYPE[business]
@@ -54,9 +55,14 @@ class Account:
     # ------------------------------------------
 
     @classmethod
-    def get_dataframe_columns(cls):
-        return ['id', 'business', 'balance', 'avail_balance', 'nationality', 'bank_id', 'avg_tx_per_step',
-                'compromising_ratio', 'role']
+    def get_dataframe_columns(cls) -> list:
+        return ['id', 'business', _c.GENERAL.BALANCE, _c.GENERAL.AVAILABLE_BALANCE, 'nationality', 'bank_id',
+                'avg_tx_per_step', 'compromising_ratio', 'role']
+
+    @classmethod
+    def get_dataframe_column_type(cls) -> dict:
+        return {'id': int, 'business': int, _c.GENERAL.BALANCE: float, _c.GENERAL.AVAILABLE_BALANCE: float,
+                'nationality': int, 'bank_id': int, 'avg_tx_per_step': float, 'compromising_ratio': float, 'role': int}
 
     # PRIVATE INITIALIZERS METHODS
     # ------------------------------------------
@@ -65,7 +71,6 @@ class Account:
         if behaviours_in == 'all':
             return [i for i in range(0, _c.GENERAL.TOT_PATTERNS)]
 
-        behaviours_in = behaviours_in[1:-2]
         behaviours_list = behaviours_in.split("_")
         behaviours_list = [int(x) for x in behaviours_list]
 
@@ -128,20 +133,29 @@ class Population:
         self.banks = dict()
         self.accounts = dict()
 
-        self.accounts_dataframe = pd.DataFrame(columns=Account.get_dataframe_columns())
+        self.accounts_dataframe = self.__create_accounts_dataframe()
         self.bank_to_acc = dict()
         self.role_to_acc = dict()
         self.patterns_to_acc = dict()
         self.compromised = set()
 
+    # INITIATORS
+    # ------------------------------------------
+    @staticmethod
+    def __create_accounts_dataframe():
+        df = pd.DataFrame(columns=Account.get_dataframe_columns())
+        df = df.astype(Account.get_dataframe_column_type())
+
+        return df
+
     # GETTERS
     # ------------------------------------------
 
     def get_bank_ids(self) -> list:
-        return list(self.accounts.keys())
+        return list(self.banks.keys())
 
     def get_bank_nums(self) -> int:
-        return len(self.accounts)
+        return len(self.banks)
 
     def get_account(self, account_id):
         return self.accounts[account_id]
@@ -158,16 +172,26 @@ class Population:
     def get_accounts_from_pattern(self, pattern: int) -> list:
         return self.patterns_to_acc[pattern]
 
-    def query_accounts_for_pattern(self, n: int, pattern: int, role: int, node_requirements: dict,
+    def query_accounts_for_pattern(self, pattern: int, role: int, node_requirements: dict,
                                    black_list: list) -> dict:
         black_list_extended = [*black_list]
         nodes_dict = dict()
 
         eligible_accts_df = self.accounts_dataframe
         if pattern is not None:
-            eligible_accts_df = eligible_accts_df.iloc[self.patterns_to_acc[pattern]]
+            eligible_accts_df = self.accounts_dataframe.iloc[self.patterns_to_acc[pattern]]
         if role is not None:
-            eligible_accts_df = eligible_accts_df[eligible_accts_df['role'] == role]
+            eligible_accts_df_tmp = eligible_accts_df[eligible_accts_df['role'] == role]
+            # This is done in order to avoid the emptiness due to the simple form: in this case the df contains only
+            # ML as entry, not a specific role (SOURCE, LAYERER, DESTINATION) and in this case all are good. IF this is
+            # the situation, the role check is just bypassed
+            if eligible_accts_df_tmp.empty:
+                # If the previous check returns empty means that we are in an unstructured scenario. Thus, every
+                # launderer can be whatever ml role
+                eligible_accts_df = eligible_accts_df[eligible_accts_df['role'] != _c.ACCOUNT.NORMAL]
+            else:
+                # Otherwise, just assign the tmp variable to the correct one
+                eligible_accts_df = eligible_accts_df_tmp
         assert len(eligible_accts_df.index) > 0
 
         query_acct_df = eligible_accts_df
@@ -184,18 +208,28 @@ class Population:
                 requirement = node_requirement.get(_c.GENERAL.BALANCE)
                 if requirement is not None:
                     query_acct_df = query_acct_df[query_acct_df[_c.GENERAL.AVAILABLE_BALANCE] >= requirement]
+                # Log the missing requirements check
+                out_str = "Too restrictive requirements for pattern " + str(pattern) + " : "
+                for key, req in node_requirement.items():
+                    out_str += key + " >= " + str(req)
+                logging.warning(out_str)
             assert len(query_acct_df.index) > 0
 
-            available = set(query_acct_df.index) - set(black_list_extended)
-            chosen_node = random.sample(available, k=n)
+            available = set(query_acct_df.index.tolist()) - set(black_list_extended)
+            chosen_node = random.sample(available, k=1)[0]
             nodes_dict[node_id] = chosen_node
             # The chosen node is appended to black_list to avoid being re-chosen
             black_list_extended.append(chosen_node)
             # Update dataframe node available balance to avoid overlapping inconsistent pattern choices
             amount = node_requirement.get(_c.GENERAL.BALANCE)
             if amount is not None:
-                self.accounts_dataframe.loc[
-                    self.accounts_dataframe['id'] == chosen_node, _c.GENERAL.AVAILABLE_BALANCE] -= amount
+                try:
+                    old_balance = self.accounts_dataframe[self.accounts_dataframe['id'] == chosen_node]
+                    self.accounts_dataframe.loc[self.accounts_dataframe['id'] == chosen_node, _c.GENERAL.AVAILABLE_BALANCE] = old_balance - amount
+                    #self.accounts_dataframe.at[
+                    #self.accounts_dataframe['id'] == chosen_node, _c.GENERAL.AVAILABLE_BALANCE] -= amount
+                except Exception as e:
+                    print(e)
                 self.accounts[chosen_node].available_balance -= amount
 
         return nodes_dict
@@ -212,7 +246,8 @@ class Population:
         # Add account to general dictionary
         account_id = account.id
         self.accounts[account_id] = account
-        self.accounts_dataframe.iloc[account.id] = account.to_dataframe_row()
+        self.accounts_dataframe.loc[len(self.accounts_dataframe.index)] = account.to_dataframe_row()
+        assert len(self.accounts) == len(self.accounts_dataframe.index)
 
         # Add account to Bank->Account.id dictionary
         bank_id = account.bank_id
@@ -227,15 +262,12 @@ class Population:
         self.compromised.add(account_id)
 
     def update_accounts_connections(self, fan_in: list, fan_out: list) -> None:
-        self.accounts_dataframe['fan_in'] = fan_in
-        self.accounts_dataframe['fan_out'] = fan_out
+        assert len(self.accounts_dataframe.index) == len(fan_in) == len(fan_out)
+        self.accounts_dataframe['fan_in'] = [len(x) for x in fan_in]
+        self.accounts_dataframe['fan_out'] = [len(x) for x in fan_out]
 
     # CREATION
     # ------------------------------------------
-
-    def initialize_account_dataframe(self):
-        self.accounts_dataframe = pd.DataFrame([account.to_dataframe_row() for account in self.accounts],
-                                               columns=Account.get_dataframe_columns())
 
     def create_launderers(self, mode, limiting_quantile=_v.POPULATION.DEF_ML_LIMITING_QUANTILE):
         if mode == _c.POPULATION.LAUNDERER_CREATION_SIMPLE_MODE:
@@ -255,15 +287,14 @@ class Population:
         # distribution adn then removing the account with higher avg_fan_out. Launderers does not do many transactions in order to not be bothered
         if limiting_quantile > 0.0:
             quantile_df = acc_df[['avg_tx_per_step']]
-            tx_out_quant = np.quantile(quantile_df, limiting_quantile, axis=0)
-            acc_df.drop(acc_df[acc_df['avg_tx_per_step'] >= tx_out_quant].index, inplace=True)
+            tx_out_quant = np.quantile(quantile_df, limiting_quantile, axis=0)[0]
+            acc_df = acc_df.drop(acc_df[acc_df['avg_tx_per_step'] >= tx_out_quant].index.tolist())
 
-        launderers_ids = random.sample(self.accounts.keys(), k=launderers_num)
+        launderers_ids = random.sample(acc_df.index.tolist(), k=launderers_num)
         for i in launderers_ids:
             self.accounts[i].role = _c.ACCOUNT.ML
-            add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML_SOURCE, i)
-            add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML_LAYER, i)
-            add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML_DESTINATION, i)
+            self.accounts_dataframe.at[self.accounts_dataframe['id'] == i, 'role'] = _c.ACCOUNT.ML
+            add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML, i)
 
         num_launderers = sum([len(l) for _, l in self.role_to_acc.items()])
         assert num_launderers in range(int(launderers_num * 0.9), int(launderers_num * 1.1))
@@ -294,7 +325,7 @@ class Population:
         if limiting_quantile > 0.0:
             quantile_df = acc_df[['avg_tx_per_step']]
             tx_out_quant = np.quantile(quantile_df, limiting_quantile, axis=0)
-            acc_df.drop(acc_df[acc_df['avg_tx_per_step'] >= tx_out_quant].index, inplace=True)
+            acc_df = acc_df.drop(acc_df[acc_df['avg_tx_per_step'] >= tx_out_quant].index.tolist())
 
         # For each bank are extracted sources, layers and destinations
         for bank_id in range(0, num_banks):
@@ -304,6 +335,7 @@ class Population:
             source_ids = random.sample(bank_users_idxs, k=source_dist[bank_id])
             for i in source_ids:
                 self.accounts[i].role = _c.ACCOUNT.ML_SOURCE
+                self.accounts_dataframe.at[self.accounts_dataframe['id'] == i, 'role'] = _c.ACCOUNT.ML_SOURCE
                 add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML_SOURCE, i)
 
             # Set AMLLayer for bank_i
@@ -311,6 +343,7 @@ class Population:
             layer_ids = random.sample(bank_users_idxs, k=layerer_dist[bank_id])
             for i in layer_ids:
                 self.accounts[i].role = _c.ACCOUNT.ML_LAYER
+                self.accounts_dataframe.at[self.accounts_dataframe['id'] == i, 'role'] = _c.ACCOUNT.ML_LAYER
                 add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML_LAYER, i)
 
             # Set AMLDestination for bank_i
@@ -318,6 +351,7 @@ class Population:
             destination_ids = random.sample(bank_users_idxs, k=destination_dist[bank_id])
             for i in destination_ids:
                 self.accounts[i].role = _c.ACCOUNT.ML_DESTINATION
+                self.accounts_dataframe.at[self.accounts_dataframe['id'] == i, 'role'] = _c.ACCOUNT.ML_DESTINATION
                 add_to_dict_of_list(self.role_to_acc, _c.ACCOUNT.ML_DESTINATION, i)
 
         num_launderers = sum([len(l) for _, l in self.role_to_acc.items()])
@@ -343,6 +377,9 @@ class Population:
             self.accounts_dataframe.at[originator_id, 'balance'] -= amount
             beneficiary.update_balance(amount)
             self.accounts_dataframe.at[originator_id, 'balance'] += amount
+        else:
+            logging.warning("Missed transaction on user " + str(originator_id) + " : balance = " +
+                            str(originator.balance()) + "and amount = " + str(amount))
 
         return outcome
 

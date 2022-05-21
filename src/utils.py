@@ -10,7 +10,7 @@ def add_to_dict_of_list(dictionary: dict, dict_key, dict_item) -> None:
     if dict_key in dictionary.keys():
         dictionary[dict_key].append(dict_item)
     else:
-        dictionary[dict_key] = list(dict_item)
+        dictionary[dict_key] = [dict_item]
 
 
 def addn_to_dict_of_list(dictionary: dict, dict_key, dict_items: list) -> None:

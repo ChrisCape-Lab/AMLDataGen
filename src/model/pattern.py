@@ -2,9 +2,13 @@ import random
 
 import networkx as nx
 
-from src._constants import *
-from src._variables import *
+import src._constants as _c
+import src._variables as _v
 from src.utils import random_chunk, add_to_dict_of_list, addn_to_dict_of_list
+
+NORMAL_AMT = 0
+ROUNDED = 1
+UNDER_THRESH = 2
 
 
 def get_rounded(value):
@@ -25,7 +29,7 @@ def get_under_threshold(value):
 
 class Pattern:
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         self.id = pattern_id
         self.pattern_type = pattern_type
         self.num_accounts = num_accounts
@@ -53,7 +57,7 @@ class Pattern:
     def _get_amount(self, value):
         weights = [1 - (self.rounded_ratio + self.under_threshold_ratio), self.rounded_ratio,
                    self.under_threshold_ratio]
-        case = random.choices([NORMAL_AMT, ROUNDED, UNDER_THRESH], weights=weights, k=1)
+        case = random.choices([NORMAL_AMT, ROUNDED, UNDER_THRESH], weights=weights, k=1)[0]
         if case == NORMAL_AMT:
             return round(value, 2)
         elif case == ROUNDED:
@@ -67,11 +71,11 @@ class Pattern:
         end_time = start_time + self.period
 
         # INSTANT SCHEDULING: each tx is executed in the same day as others
-        if self.scheduling_type == SCHEDULING.INSTANT:
+        if self.scheduling_type == _c.SCHEDULING.INSTANT:
             time = random.randint(start_time, end_time)
             scheduling_times = [time] * num_tx
         # PERIODIC SCHEDULING: each tx on a different day if possible, otherwise random sample some repeated days
-        elif self.scheduling_type == SCHEDULING.PERIODIC:
+        elif self.scheduling_type == _c.SCHEDULING.PERIODIC:
             if num_tx > self.period:
                 scheduling_times = list(range(start_time, end_time))
                 exceeding = num_tx - (end_time - start_time)
@@ -98,11 +102,11 @@ class Pattern:
             node_req = dict()
             fan_out = len(self.structure.successors(node_id))
             amount = 0
-            for _, e_attr in self.structure[node_id]:
-                amount += e_attr['weight']
+            for _, e_attr in self.structure[node_id].items():
+                    amount += e_attr['weight']
 
-            node_req[GENERAL.FAN_OUT_NAME] = fan_out
-            node_req[GENERAL.BALANCE] = amount
+            node_req[_c.GENERAL.FAN_OUT_NAME] = fan_out
+            node_req[_c.GENERAL.BALANCE] = amount
 
             requirements[node_id] = node_req
             num_sources += 1
@@ -126,11 +130,11 @@ class Pattern:
             for _, e_attr in self.structure[node_id]:
                 amount += e_attr['weight']
             for pre_id in self.structure.predecessors(node_id):
-                amount -= G[pre_id][node_id]['weight']
+                amount -= self.structure[pre_id][node_id]['weight']
 
-            node_req[GENERAL.FAN_OUT_NAME] = fan_out
-            node_req[GENERAL.FAN_IN_NAME] = fan_in
-            node_req[GENERAL.BALANCE] = amount
+            node_req[_c.GENERAL.FAN_OUT_NAME] = fan_out
+            node_req[_c.GENERAL.FAN_IN_NAME] = fan_in
+            node_req[_c.GENERAL.BALANCE] = amount
 
             requirements[node_id] = node_req
             num_layerers += 1
@@ -148,7 +152,7 @@ class Pattern:
 
             node_req = dict()
             fan_in = len(self.structure.predecessors(node_id))
-            node_req[GENERAL.FAN_IN_NAME] = fan_in
+            node_req[_c.GENERAL.FAN_IN_NAME] = fan_in
 
             requirements[node_id] = node_req
             num_destinations += 1
@@ -172,7 +176,7 @@ class Pattern:
 
 class FanInPattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -190,19 +194,19 @@ class FanInPattern(Pattern):
             self.structure.add_edge(i, destination_node_id, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges())
         scheduling_times = self._schedule(num_tx, start_time)
-        for i, (src, dst, attr) in enumerate(self.structure.edges):
+        for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
-            transaction = (source, destination, attr['weight'], scheduling_times[i], GENERAL.FAN_IN)
+            transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.FAN_IN)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
 
 
 class FanOutPattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
                  under_threshold_ratio=.0,
-                 scheduling_type=SCHEDULING.RANDOM):
+                 scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -220,18 +224,18 @@ class FanOutPattern(Pattern):
             self.structure.add_edge(source_node_id, i, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges())
         scheduling_times = self._schedule(num_tx, start_time)
-        for i, (src, dst, attr) in enumerate(self.structure.edges):
+        for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
-            transaction = (source, destination, attr['weight'], scheduling_times[i], GENERAL.FAN_OUT)
+            transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.FAN_OUT)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
 
 
 class CyclePattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -246,18 +250,18 @@ class CyclePattern(Pattern):
         self.structure.add_edge(self.num_accounts - 1, 0, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges(data=True))
         scheduling_times = self._schedule(num_tx, start_time)
-        for i, (src, dst, attr) in enumerate(self.structure.edges):
+        for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
-            transaction = (source, destination, attr['weight'], scheduling_times[i], GENERAL.CYCLE)
+            transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.CYCLE)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
 
 
 class ScatterGatherPattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -279,31 +283,31 @@ class ScatterGatherPattern(Pattern):
             self.structure.add_edge(i, destination_node_id, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges())
         scheduling_times = self._schedule(num_tx, start_time)
-        first_step_tx = list(filter(lambda x: x[0] == 0, self.structure.edges))
+        first_step_tx = list(filter(lambda x: x[0] == 0, self.structure.edges(data=True)))
         first_step_tx.sort(key=lambda x: x[1])
-        second_step_tx = list(filter(lambda x: x[1] == self.num_accounts - 1, self.structure.edges))
+        second_step_tx = list(filter(lambda x: x[1] == self.num_accounts - 1, self.structure.edges(data=True)))
         second_step_tx.sort(key=lambda x: x[0])
         for fs_tx, ss_tx in zip(first_step_tx, second_step_tx):
             time_steps = sorted(random.sample(scheduling_times, k=2))
 
             source = self.accounts_map[fs_tx[0]]
             destination = self.accounts_map[fs_tx[1]]
-            transaction = (source, destination, fs_tx[2]['weight'], time_steps[0], GENERAL.SCATTER_GATHER)
+            transaction = (source, destination, fs_tx[2]['weight'], time_steps[0], _c.GENERAL.SCATTER_GATHER)
             add_to_dict_of_list(self.transactions, time_steps[0], transaction)
             scheduling_times.remove(time_steps[0])
 
             source = self.accounts_map[ss_tx[0]]
             destination = self.accounts_map[ss_tx[1]]
-            transaction = (source, destination, ss_tx[2]['weight'], time_steps[1], GENERAL.SCATTER_GATHER)
+            transaction = (source, destination, ss_tx[2]['weight'], time_steps[1], _c.GENERAL.SCATTER_GATHER)
             add_to_dict_of_list(self.transactions, time_steps[1], transaction)
             scheduling_times.remove(time_steps[1])
 
 
 class GatherScatterPattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -327,18 +331,18 @@ class GatherScatterPattern(Pattern):
             self.structure.add_edge(intermediate_node_id, i, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges(data=True))
         scheduling_times = self._schedule(num_tx, start_time)
-        for i, (src, dst, attr) in enumerate(self.structure.edges):
+        for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
-            transaction = (source, destination, attr['weight'], scheduling_times[i], GENERAL.GATHER_SCATTER)
+            transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.GATHER_SCATTER)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
 
 
 class UPattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -353,7 +357,7 @@ class UPattern(Pattern):
             self.structure.add_edge(i, i - 1, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges(data=True))
         scheduling_times = self._schedule(num_tx, start_time)
 
         tx_index = 0
@@ -361,7 +365,7 @@ class UPattern(Pattern):
             source = self.accounts_map[i - 1]
             destination = self.accounts_map[i]
             weight = self.structure[i - 1][i]
-            transaction = (source, destination, weight, scheduling_times[tx_index], GENERAL.U)
+            transaction = (source, destination, weight, scheduling_times[tx_index], _c.GENERAL.U)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
             tx_index += 1
 
@@ -369,14 +373,14 @@ class UPattern(Pattern):
             source = self.accounts_map[i]
             destination = self.accounts_map[i - 1]
             weight = self.structure[i - 1][i]
-            transaction = (source, destination, weight, scheduling_times[tx_index], GENERAL.U)
+            transaction = (source, destination, weight, scheduling_times[tx_index], _c.GENERAL.U)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
             tx_index += 1
 
 
 class RepeatedPattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -385,7 +389,7 @@ class RepeatedPattern(Pattern):
 
     def create_structure(self):
         self.num_accounts = 2
-        num_tx = random.randint(REPEATED_MIN, REPEATED_MAX)
+        num_tx = random.randint(_v.PATTERN.REPEATED_MIN, _v.PATTERN.REPEATED_MAX)
         single_amount = self._get_amount(self.amount)
 
         self.structure.add_node(0, role='s')
@@ -394,19 +398,19 @@ class RepeatedPattern(Pattern):
             self.structure.add_edge(0, 1, weight=single_amount)
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges(data=True))
         scheduling_times = self._schedule(num_tx, start_time)
 
-        for i, (src, dst, attr) in enumerate(self.structure.edges):
+        for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
-            transaction = (source, destination, attr['weight'], scheduling_times[i], GENERAL.REPEATED)
+            transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.REPEATED)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
 
 
 class BipartitePattern(Pattern):
     def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
-                 under_threshold_ratio=.0, scheduling_type=SCHEDULING.RANDOM):
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
         super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                          under_threshold_ratio, scheduling_type)
 
@@ -415,18 +419,18 @@ class BipartitePattern(Pattern):
 
     def create_structure(self):
         # For Bipartite, determine the number of layers and the sources/destinations distribution
-        num_sources = int(random.uniform(PATTERN.BIPARTITE_MIN_SOURCES, PATTERN.BIPARTITE_MAX_SOURCES) * self.num_accounts)
+        num_sources = int(random.uniform(_v.PATTERN.BIPARTITE_MIN_SOURCES, _v.PATTERN.BIPARTITE_MAX_SOURCES) * self.num_accounts)
         num_destinations = int(
-            random.uniform(PATTERN.BIPARTITE_MIN_DESTINATIONS, PATTERN.BIPARTITE_MAX_DESTINATIONS) * self.num_accounts)
+            random.uniform(_v.PATTERN.BIPARTITE_MIN_DESTINATIONS, _v.PATTERN.BIPARTITE_MAX_DESTINATIONS) * self.num_accounts)
         num_layerer = self.num_accounts - (num_sources + num_destinations)
 
-        min_layers_dim = num_layerer / PATTERN.BIPARTITE_MAX_LAYERS_NUM
-        max_layers_dim = num_layerer / PATTERN.BIPARTITE_MIN_LAYERS_NUM
+        min_layers_dim = int(num_layerer / _v.PATTERN.BIPARTITE_MAX_LAYERS_NUM)
+        max_layers_dim = int(num_layerer / _v.PATTERN.BIPARTITE_MIN_LAYERS_NUM)
 
         layerer = [i for i in range(num_sources, num_layerer + num_sources)]
         for i in layerer:
             self.structure.add_node(i, role='l')
-        layers = random_chunk(layerer, min_chunk=min_layers_dim, max_chunk=max_layers_dim)
+        layers = list(random_chunk(layerer, min_chunk=min_layers_dim, max_chunk=max_layers_dim))
         layers.append([i for i in range(num_layerer + num_sources, self.num_accounts)])
         for i in range(num_layerer + num_sources, self.num_accounts):
             self.structure.add_node(i, role='d')
@@ -443,7 +447,7 @@ class BipartitePattern(Pattern):
             edges = []
             for sender in senders:
                 for receiver in receivers:
-                    if random.random() < PATTERN.BIPARTITE_EDGE_DENSITY:
+                    if random.random() < _v.PATTERN.BIPARTITE_EDGE_DENSITY or len(edges) == 0:
                         edges.append((sender, receiver))
             num_txs = len(edges)
 
@@ -456,44 +460,44 @@ class BipartitePattern(Pattern):
             step += 1
 
     def schedule(self, start_time):
-        num_tx = len(self.structure.edges)
+        num_tx = len(self.structure.edges(data=True))
         scheduling_times = self._schedule(num_tx, start_time)
 
-        ordered_tx_list = list(self.structure.edges).copy()
+        ordered_tx_list = list(self.structure.edges(data=True)).copy()
         ordered_tx_list.sort(key=lambda x: x[2]['step'])
 
         for i, (src, dst, attr) in enumerate(ordered_tx_list):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
-            transaction = (source, destination, attr['weight'], scheduling_times[i], GENERAL.BIPARTITE)
+            transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.BIPARTITE)
             self.transactions[scheduling_times[i]] = transaction
 
 
 def create_pattern(pattern_id: int, pattern_type: int, num_accounts: int, period: int, amount: float, is_aml: bool,
                    rounded_ratio: float = .0, under_threshold_ratio: float = .0,
-                   scheduling_type: int = SCHEDULING.RANDOM) -> Pattern:
-    if pattern_type == GENERAL.FAN_IN:
+                   scheduling_type: int = _c.SCHEDULING.RANDOM) -> Pattern:
+    if pattern_type == _c.GENERAL.FAN_IN:
         return FanInPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                             under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.FAN_OUT:
+    elif pattern_type == _c.GENERAL.FAN_OUT:
         return FanOutPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                              under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.CYCLE:
+    elif pattern_type == _c.GENERAL.CYCLE:
         return CyclePattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                             under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.SCATTER_GATHER:
+    elif pattern_type == _c.GENERAL.SCATTER_GATHER:
         return ScatterGatherPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                                     under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.GATHER_SCATTER:
+    elif pattern_type == _c.GENERAL.GATHER_SCATTER:
         return GatherScatterPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                                     under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.U:
+    elif pattern_type == _c.GENERAL.U:
         return UPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                         under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.REPEATED:
+    elif pattern_type == _c.GENERAL.REPEATED:
         return RepeatedPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                                under_threshold_ratio, scheduling_type)
-    elif pattern_type == GENERAL.BIPARTITE:
+    elif pattern_type == _c.GENERAL.BIPARTITE:
         return BipartitePattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                                 under_threshold_ratio, scheduling_type)
     else:
