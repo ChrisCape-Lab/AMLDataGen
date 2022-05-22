@@ -17,8 +17,14 @@ class Bank:
 
 
 class Account:
-    def __init__(self, acct_id, balance, balance_limit_percentage, business, behaviours, bank_id, avg_tx_per_step,
-                 min_amount, max_amount, compromising_ratio, role):
+    def __init__(self, acct_id: int, balance: float, balance_limit_percentage: float, business: str, behaviours: str, bank_id: int, avg_tx_per_step: float,
+                 min_amount: float, max_amount: float, compromising_ratio: float, role: int):
+        assert balance >= 0, "Balance must be greater than zero, found " + str(balance)
+        assert avg_tx_per_step >= 0, "avg_tx_per_step must be greater than zero, found " + str(avg_tx_per_step)
+        assert min_amount >= 0, "min_amount must be greater than zero, found " + str(min_amount)
+        assert max_amount >= 0, "max_amount must be greater than zero, found " + str(max_amount)
+        #assert compromising_ratio >= 0, "compromising_ratio must be greater than zero, found " + str(compromising_ratio)
+
         # Unique ID that define the account
         self.id = int(acct_id)
 
@@ -26,7 +32,7 @@ class Account:
         self.business = _c.ACCOUNT.BUSINESS_TYPE[business]
 
         #
-        self.balance = balance
+        self.balance = round(balance, 2)
 
         # Balance limit is the balance that triggers a cash in or cash-out and corresponds to balance% and balance(2-%)
         self.balance_limits = self.__set_balance_limits(balance_limit_percentage)
@@ -89,8 +95,14 @@ class Account:
     def get_number_of_cash_tx(self):
         return random.randint(_v.ACCOUNT.CASH_TX_MIN, _v.ACCOUNT.CASH_TX_MAX)
 
-    def get_cash_amount(self):
-        return random.uniform(self.min_amount, self.max_amount)
+    def get_cash_in_amount(self):
+        return round(random.uniform(self.min_amount, self.max_amount), 2)
+
+    def get_cash_out_amount(self):
+        if self.max_amount > self.balance:
+            return 0
+
+        return round(random.uniform(self.min_amount, self.max_amount), 2)
 
     def get_number_of_txs(self):
         return int(random.gauss(self.avg_tx_per_step, _v.ACCOUNT.DEF_AVG_TX_PER_TIME_VARIANCE))
@@ -110,7 +122,7 @@ class Account:
     # ------------------------------------------
 
     def has_amount(self, amount):
-        return self.balance > amount
+        return self.balance > amount and self.available_balance > amount
 
     def require_cash_in(self):
         return self.balance < min(self.balance_limits) or self.available_balance < min(self.balance_limits)
@@ -121,9 +133,12 @@ class Account:
     # MODIFIERS
     # ------------------------------------------
     def update_available_balance(self, amount):
+        assert self.available_balance - amount > 0
         self.available_balance -= amount
 
     def update_balance(self, amount):
+        assert self.balance + amount > 0, "Not enough balance " + str(-amount)
+        assert self.available_balance + amount > 0, "Not enough available balance " + str(-amount)
         self.balance += amount
         self.available_balance += amount
 
@@ -222,15 +237,11 @@ class Population:
             black_list_extended.append(chosen_node)
             # Update dataframe node available balance to avoid overlapping inconsistent pattern choices
             amount = node_requirement.get(_c.GENERAL.BALANCE)
+
             if amount is not None:
-                try:
-                    old_balance = self.accounts_dataframe[self.accounts_dataframe['id'] == chosen_node]
-                    self.accounts_dataframe.loc[self.accounts_dataframe['id'] == chosen_node, _c.GENERAL.AVAILABLE_BALANCE] = old_balance - amount
-                    #self.accounts_dataframe.at[
-                    #self.accounts_dataframe['id'] == chosen_node, _c.GENERAL.AVAILABLE_BALANCE] -= amount
-                except Exception as e:
-                    print(e)
-                self.accounts[chosen_node].available_balance -= amount
+                self.accounts[chosen_node].update_available_balance(-amount)
+                old_balance = self.accounts_dataframe[self.accounts_dataframe['id'] == chosen_node][_c.GENERAL.AVAILABLE_BALANCE]
+                self.accounts_dataframe.loc[self.accounts_dataframe['id'] == chosen_node, _c.GENERAL.AVAILABLE_BALANCE] = old_balance - amount
 
         return nodes_dict
 
@@ -363,23 +374,21 @@ class Population:
     # ------------------------------------------
     def perform_cash_tx(self, account_id: int, amount: float) -> None:
         account = self.accounts[account_id]
-        account.update_balance(+amount)
+        account.update_balance(amount)
         self.accounts_dataframe.at[account_id, 'balance'] += amount
         self.accounts_dataframe.at[account_id, 'available_balance'] += amount
 
-    def send_transaction(self, originator_id: int, beneficiary_id: int, amount: int) -> bool:
+    def send_transaction(self, originator_id: int, beneficiary_id: int, amount: int, tx_type: int) -> bool:
+        assert amount > 0
         originator = self.accounts[originator_id]
         beneficiary = self.accounts[beneficiary_id]
 
-        outcome = originator.has_amount()
+        outcome = originator.has_amount(amount)
         if outcome:
             originator.update_balance(-amount)
             self.accounts_dataframe.at[originator_id, 'balance'] -= amount
             beneficiary.update_balance(amount)
-            self.accounts_dataframe.at[originator_id, 'balance'] += amount
-        else:
-            logging.warning("Missed transaction on user " + str(originator_id) + " : balance = " +
-                            str(originator.balance()) + "and amount = " + str(amount))
+            self.accounts_dataframe.at[beneficiary_id, 'balance'] += amount
 
         return outcome
 

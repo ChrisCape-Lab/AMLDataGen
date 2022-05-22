@@ -18,12 +18,14 @@ def get_rounded(value):
         most_significant_nums = str(amount)[0:int(digits / 2)]
         rounded_amt = str(most_significant_nums).ljust(digits, '0')
 
+        assert int(rounded_amt) > 0
         return int(rounded_amt)
     else:
         print("Negative Amount!")
 
 
 def get_under_threshold(value):
+    assert get_rounded(value) - 1 > 0
     return get_rounded(value) - 1
 
 
@@ -85,7 +87,7 @@ class Pattern:
                 scheduling_times = sorted(list(range(start_time, start_time + num_tx)))
         # RANDOM SCHEDULING: just random sample some days in the interval
         else:
-            scheduling_times = sorted(random.sample(range(start_time, end_time), k=num_tx))
+            scheduling_times = sorted(random.choices(range(start_time, end_time), k=num_tx))
 
         return scheduling_times
 
@@ -127,7 +129,7 @@ class Pattern:
             fan_in = len(self.structure.predecessors(node_id))
 
             amount = 0
-            for _, e_attr in self.structure[node_id]:
+            for _, e_attr in self.structure[node_id].items():
                 amount += e_attr['weight']
             for pre_id in self.structure.predecessors(node_id):
                 amount -= self.structure[pre_id][node_id]['weight']
@@ -172,6 +174,29 @@ class Pattern:
 
     def schedule_txs(self, time: int) -> list:
         return self.transactions.get(time, None)
+
+
+class RandomPattern(Pattern):
+    def __init__(self, pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio=.0,
+                 under_threshold_ratio=.0, scheduling_type=_c.SCHEDULING.RANDOM):
+        super().__init__(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
+                         under_threshold_ratio, scheduling_type)
+
+    # BEHAVIOUR
+    # ------------------------------------------
+
+    def create_structure(self):
+        self.structure.add_node(0, role='s')
+        self.structure.add_node(1, role='d')
+        self.structure.add_edge(0, 1, weight=self._get_amount(self.amount))
+
+    def schedule(self, start_time):
+        source = self.accounts_map[0]
+        destination = self.accounts_map[1]
+        scheduling_time = self._schedule(1, start_time)[0]
+        weight = self.structure[0][1]['weight']
+        transaction = (source, destination, weight, scheduling_time, _c.GENERAL.RANDOM)
+        add_to_dict_of_list(self.transactions, scheduling_time, transaction)
 
 
 class FanInPattern(Pattern):
@@ -244,6 +269,7 @@ class CyclePattern(Pattern):
 
     def create_structure(self):
         single_amount = self._get_amount(self.amount)
+        self.structure.add_node(0, role='l')
         for i in range(1, self.num_accounts):
             self.structure.add_node(i, role='l')
             self.structure.add_edge(i - 1, i, weight=single_amount)
@@ -351,7 +377,8 @@ class UPattern(Pattern):
 
     def create_structure(self):
         single_amount = self._get_amount(self.amount)
-        for i in range(0, self.num_accounts):
+        self.structure.add_node(0, role='l')
+        for i in range(1, self.num_accounts):
             self.structure.add_node(i, role='l')
             self.structure.add_edge(i - 1, i, weight=single_amount)
             self.structure.add_edge(i, i - 1, weight=single_amount)
@@ -364,16 +391,16 @@ class UPattern(Pattern):
         for i in range(1, int(self.num_accounts)):
             source = self.accounts_map[i - 1]
             destination = self.accounts_map[i]
-            weight = self.structure[i - 1][i]
-            transaction = (source, destination, weight, scheduling_times[tx_index], _c.GENERAL.U)
+            amount = self.structure[i - 1][i]['weight']
+            transaction = (source, destination, amount, scheduling_times[tx_index], _c.GENERAL.U)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
             tx_index += 1
 
-        for i in range(int(self.num_accounts), 1, -1):
+        for i in range(int(self.num_accounts)-1, 0, -1):
             source = self.accounts_map[i]
             destination = self.accounts_map[i - 1]
-            weight = self.structure[i - 1][i]
-            transaction = (source, destination, weight, scheduling_times[tx_index], _c.GENERAL.U)
+            amount = self.structure[i - 1][i]['weight']
+            transaction = (source, destination, amount, scheduling_times[tx_index], _c.GENERAL.U)
             add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
             tx_index += 1
 
@@ -427,16 +454,25 @@ class BipartitePattern(Pattern):
         min_layers_dim = int(num_layerer / _v.PATTERN.BIPARTITE_MAX_LAYERS_NUM)
         max_layers_dim = int(num_layerer / _v.PATTERN.BIPARTITE_MIN_LAYERS_NUM)
 
+        layers = list()
+
+        # Add sources
+        sources = [i for i in range(0, num_sources)]
+        for i in sources:
+            self.structure.add_node(i, role='s')
+        layers.append(sources)
+
+        # Add layerer
         layerer = [i for i in range(num_sources, num_layerer + num_sources)]
         for i in layerer:
             self.structure.add_node(i, role='l')
-        layers = list(random_chunk(layerer, min_chunk=min_layers_dim, max_chunk=max_layers_dim))
-        layers.append([i for i in range(num_layerer + num_sources, self.num_accounts)])
-        for i in range(num_layerer + num_sources, self.num_accounts):
+        layers.extend(list(random_chunk(layerer, min_chunk=min_layers_dim, max_chunk=max_layers_dim)))
+
+        # Add destinations
+        destinations = [i for i in range(num_layerer + num_sources, self.num_accounts)]
+        for i in destinations:
             self.structure.add_node(i, role='d')
-        layers.insert(0, [i for i in range(0, num_sources)])
-        for i in range(num_layerer + num_sources, self.num_accounts):
-            self.structure.add_node(i, role='s')
+        layers.append(destinations)
 
         # For each couple of layers create a bipartite graph
         step = 0
@@ -470,13 +506,16 @@ class BipartitePattern(Pattern):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
             transaction = (source, destination, attr['weight'], scheduling_times[i], _c.GENERAL.BIPARTITE)
-            self.transactions[scheduling_times[i]] = transaction
+            add_to_dict_of_list(self.transactions, scheduling_times[i], transaction)
 
 
 def create_pattern(pattern_id: int, pattern_type: int, num_accounts: int, period: int, amount: float, is_aml: bool,
                    rounded_ratio: float = .0, under_threshold_ratio: float = .0,
                    scheduling_type: int = _c.SCHEDULING.RANDOM) -> Pattern:
-    if pattern_type == _c.GENERAL.FAN_IN:
+    if pattern_type == _c.GENERAL.RANDOM:
+        return RandomPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
+                            under_threshold_ratio, scheduling_type)
+    elif pattern_type == _c.GENERAL.FAN_IN:
         return FanInPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                             under_threshold_ratio, scheduling_type)
     elif pattern_type == _c.GENERAL.FAN_OUT:

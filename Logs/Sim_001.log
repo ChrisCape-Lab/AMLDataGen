@@ -3,3 +3,79 @@
 [INFO] Init: laundering patterns loaded correctly
 [INFO] Sim: simulation created correctly
 [INFO] Sim: Starting simulation
+[INFO]   - [0:00:01.553077] Step 1/54: Done
+[WARNING] Missed transaction on user 1110 : balance = 169.11999999999534and amount = 169.12 on pattern -1
+[WARNING] Missed transaction on user 1659 : balance = 89.72999999999956and amount = 89.73 on pattern -1
+[INFO]   - [0:00:01.545352] Step 2/54: Done
+[INFO]   - [0:00:01.526050] Step 3/54: Done
+[INFO]   - [0:00:01.578744] Step 4/54: Done
+[INFO]   - [0:00:02.246179] Step 5/54: Done
+[INFO]   - [0:00:01.707371] Step 6/54: Done
+[WARNING] Missed transaction on user 1371 : balance = 175.05999999999176and amount = 175.06 on pattern -1
+[INFO]   - [0:00:01.582196] Step 7/54: Done
+[WARNING] Missed transaction on user 1557 : balance = 81.8199999999888and amount = 81.82 on pattern -1
+[INFO]   - [0:00:01.575463] Step 8/54: Done
+[INFO]   - [0:00:01.546832] Step 9/54: Done
+[INFO]   - [0:00:01.549724] Step 10/54: Done
+[CRITICAL] Missed transaction on user 1029 : balance = 1061.3999999999996and amount = 1701.84 on pattern 2
+[WARNING] Missed transaction on user 1284 : balance = 100.40999999999121and amount = 100.41 on pattern -1
+[INFO]   - [0:00:02.135742] Step 11/54: Done
+[INFO]   - [0:00:02.126964] Step 12/54: Done
+[WARNING] Missed transaction on user 1737 : balance = 704.2200000000166and amount = 1451.8 on pattern 0
+[WARNING] Missed transaction on user 1057 : balance = 72.77999999998866and amount = 72.78 on pattern -1
+[INFO]   - [0:00:02.421179] Step 13/54: Done
+[INFO]   - [0:00:03.270841] Step 14/54: Done
+[CRITICAL] Missed transaction on user 1323 : balance = 807.0700000000088and amount = 1336.79 on pattern 2
+[WARNING] Missed transaction on user 1984 : balance = 116.39999999999145and amount = 116.4 on pattern -1
+[INFO]   - [0:00:02.022402] Step 15/54: Done
+[INFO]   - [0:00:02.475999] Step 16/54: Done
+[INFO]   - [0:00:02.761294] Step 17/54: Done
+[WARNING] Missed transaction on user 1357 : balance = 231.64999999999873and amount = 231.65 on pattern -1
+[INFO]   - [0:00:02.092419] Step 18/54: Done
+[INFO]   - [0:00:01.631908] Step 19/54: Done
+[INFO]   - [0:00:01.455910] Step 20/54: Done
+[WARNING] Missed transaction on user 1097 : balance = 124.89999999998963and amount = 124.9 on pattern -1
+[WARNING] Missed transaction on user 1453 : balance = 71.41999999999825and amount = 71.42 on pattern -1
+[INFO]   - [0:00:01.546813] Step 21/54: Done
+[INFO]   - [0:00:01.502305] Step 22/54: Done
+[INFO]   - [0:00:01.573666] Step 23/54: Done
+[INFO]   - [0:00:02.091463] Step 24/54: Done
+[WARNING] Missed transaction on user 1168 : balance = 18.489999999996144and amount = 18.49 on pattern -1
+[WARNING] Missed transaction on user 1661 : balance = 201.55999999999767and amount = 201.56 on pattern -1
+[INFO]   - [0:00:01.534758] Step 25/54: Done
+[INFO]   - [0:00:01.508557] Step 26/54: Done
+[WARNING] Missed transaction on user 1245 : balance = 272.8599999999806and amount = 272.86 on pattern -1
+[INFO]   - [0:00:01.562726] Step 27/54: Done
+[WARNING] Missed transaction on user 1671 : balance = 94.94999999998072and amount = 94.95 on pattern -1
+[INFO]   - [0:00:01.520754] Step 28/54: Done
+[WARNING] Missed transaction on user 1919 : balance = 108.32999999998083and amount = 108.33 on pattern -1
+[INFO]   - [0:00:01.534922] Step 29/54: Done
+[INFO]   - [0:00:01.431273] Step 30/54: Done
+[INFO]   - [0:00:01.532313] Step 31/54: Done
+[INFO]   - [0:00:01.628445] Step 32/54: Done
+[INFO]   - [0:00:02.224536] Step 33/54: Done
+[INFO]   - [0:00:01.655475] Step 34/54: Done
+[INFO]   - [0:00:01.562595] Step 35/54: Done
+[INFO]   - [0:00:01.606760] Step 36/54: Done
+[INFO]   - [0:00:01.662516] Step 37/54: Done
+[WARNING] Missed transaction on user 1085 : balance = 76.58999999999833and amount = 76.59 on pattern -1
+[INFO]   - [0:00:01.533707] Step 38/54: Done
+[INFO]   - [0:00:01.675289] Step 39/54: Done
+[INFO]   - [0:00:01.426721] Step 40/54: Done
+[INFO]   - [0:00:01.543130] Step 41/54: Done
+[WARNING] Missed transaction on user 1920 : balance = 12.07999999999538and amount = 12.08 on pattern -1
+[INFO]   - [0:00:02.071305] Step 42/54: Done
+[INFO]   - [0:00:01.432825] Step 43/54: Done
+[INFO]   - [0:00:01.528852] Step 44/54: Done
+[INFO]   - [0:00:01.491149] Step 45/54: Done
+[INFO]   - [0:00:01.438941] Step 46/54: Done
+[INFO]   - [0:00:01.589152] Step 47/54: Done
+[INFO]   - [0:00:01.521149] Step 48/54: Done
+[INFO]   - [0:00:01.550218] Step 49/54: Done
+[INFO]   - [0:00:02.062168] Step 50/54: Done
+[WARNING] Missed transaction on user 1393 : balance = 776.4800000000378and amount = 1266.66 on pattern 0
+[WARNING] Missed transaction on user 1741 : balance = 9.199999999994134and amount = 9.2 on pattern -1
+[INFO]   - [0:00:01.499232] Step 51/54: Done
+[INFO]   - [0:00:01.482143] Step 52/54: Done
+[INFO]   - [0:00:01.512360] Step 53/54: Done
+[INFO]   - [0:00:01.570484] Step 54/54: Done

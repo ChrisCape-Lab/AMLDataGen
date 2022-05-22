@@ -92,6 +92,7 @@ class AMLDataGen:
                 compromising_ratio = random.uniform(row['compromising_ratio']-0.1, row['compromising_ratio']+0.1)
                 role = _c.ACCOUNT.NORMAL
 
+                assert balance > 0 and min_amount > 0 and max_amount > 0
                 account = Account(acct_id, balance, balance_limit_percentage, business, behaviours, bank_id,
                                   avg_tx_per_step, min_amount, max_amount, compromising_ratio, role)
 
@@ -116,6 +117,8 @@ class AMLDataGen:
             for _ in range(0, row['count']):
                 amount = random.uniform(min_amount, max_amount)
                 accounts_num = random.randint(min_accounts, max_accounts)
+
+                assert accounts_num > 0 and period > 0 and amount > 0
                 pattern = create_pattern(normal_patterns_id, pattern_type, accounts_num, period, amount, False,
                                          scheduling_type=scheduling)
                 self.normal_patterns.append(pattern)
@@ -138,6 +141,8 @@ class AMLDataGen:
             for _ in range(0, row['count']):
                 amount = random.uniform(min_amount, max_amount)
                 accounts_num = random.randint(min_accounts, max_accounts)
+
+                assert accounts_num > 0 and period > 0 and amount > 0
                 pattern = create_pattern(ml_patterns_id, pattern_type, accounts_num, period, amount, True,
                                          scheduling_type=scheduling)
                 self.normal_patterns.append(pattern)

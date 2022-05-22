@@ -11,7 +11,7 @@ class GENERAL:
     FAN_OUT_NAME = 'fan_out'
 
     # Transaction particular Patterns
-    NORMAL = -1
+    RANDOM = -1
     FAN_IN = 0
     FAN_OUT = 1
     CYCLE = 2
@@ -72,9 +72,10 @@ if __name__ == "__main__":
     import networkx as nx
     from src.utils import add_to_dict_of_list, addn_to_dict_of_list
 
-    d = {'id': []}
-    addn_to_dict_of_list(d, 'id', [0, 1])
-    print(d)
+    d = {0: []}
+    add_to_dict_of_list(d, 0, (0, 1))
+    for a, b in d.get(0, "hey"):
+        print(a)
     exit()
 
     G = nx.Graph()

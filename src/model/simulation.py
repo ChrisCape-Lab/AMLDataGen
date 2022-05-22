@@ -89,7 +89,7 @@ class Simulation:
             self.step(t)
 
     def step(self, time: int) -> None:
-        start = datetime.now()
+        start = datetime.now().replace(microsecond=0)
         self.__handle_accounts_cashes(time)
         self.__handle_patterns_transactions(time)
         self.__handle_patterns_to_schedule(time)
@@ -97,7 +97,7 @@ class Simulation:
             self.__handle_accounts_random_txs(time)
         self.__handle_new_connections()
 
-        out = "  - [" + str(datetime.now()-start) + "] Step " + str(self.time) + "/" + str(self.end_time) + ": Done"
+        out = "  - [" + str(datetime.now().replace(microsecond=0)-start) + "] Step " + str(self.time + 1) + "/" + str(self.end_time) + ": Done"
         print(out)
         logging.info(out)
         self.time += 1
@@ -108,8 +108,8 @@ class Simulation:
             # Handle cash-in requests
             if account.require_cash_in():
                 for _ in range(0, account.get_number_of_cash_tx()):
-                    amount = account.get_cash_amount()
-                    transaction = (self.tx_id, None, account.id, amount, time, _c.GENERAL.NORMAL)
+                    amount = account.get_cash_in_amount()
+                    transaction = (self.tx_id, None, account.id, amount, time, _c.GENERAL.RANDOM, False)
                     self.population.perform_cash_tx(account.id, amount)
                     self.transaction_list.append(transaction)
                     self.__check_flush_tx_to_file()
@@ -118,8 +118,8 @@ class Simulation:
             # Handle cash-out requests
             if account.require_cash_out():
                 for _ in range(0, account.get_number_of_cash_tx()):
-                    amount = account.get_cash_amount()
-                    transaction = (self.tx_id, account.id, None, amount, time, _c.GENERAL.NORMAL)
+                    amount = account.get_cash_out_amount()
+                    transaction = (self.tx_id, account.id, None, amount, time, _c.GENERAL.RANDOM, False)
                     self.population.perform_cash_tx(account.id, -amount)
                     self.transaction_list.append(transaction)
                     self.__check_flush_tx_to_file()
@@ -173,38 +173,39 @@ class Simulation:
             if txs_to_schedule is None:
                 continue
 
-            for src, dst, amt, time, type in txs_to_schedule:
-                self.__execute_transaction(src, dst, amt, time, type)
+            for (src, dst, amt, time, tx_type) in txs_to_schedule:
+                self.__execute_transaction(src, dst, amt, time, tx_type, pattern.is_aml)
 
             self.__check_flush_tx_to_file()
 
     def __handle_accounts_random_txs(self, time: int) -> None:
         accounts = self.population.accounts
-        for account in accounts:
+        for _, account in accounts.items():
             # Determine whether to perform a completely random cash_in
             cash_in_probability = random.random() > _v.ACCOUNT.DEF_CASH_IN_PROB
             if cash_in_probability and not account.require_cash_out:
-                amount = account.get_cash_amount()
-                transaction = (self.tx_id, None, account.id, amount, time, _c.GENERAL.NORMAL)
+                amount = account.get_cash_in_amount()
+                transaction = (self.tx_id, None, account.id, amount, time, _c.GENERAL.RANDOM, False)
                 self.population.perform_cash_tx(account.id, amount)
                 self.transaction_list.append(transaction)
                 self.tx_id += 1
 
             # Determine whether to perform a completely random cash_out
             cash_out_probability = random.random() > _v.ACCOUNT.DEF_CASH_OUT_PROB
-            if cash_out_probability and not account.require_cash_in:
-                amount = account.get_cash_amount()
-                transaction = (self.tx_id, account.id, None, amount, time, _c.GENERAL.NORMAL)
-                self.population.perform_cash_tx(account.id, -amount)
-                self.transaction_list.append(transaction)
-                self.tx_id += 1
+            if cash_out_probability and not account.require_cash_in():
+                amount = account.get_cash_out_amount()
+                if amount > 0:
+                    transaction = (self.tx_id, account.id, None, amount, time, _c.GENERAL.RANDOM, False)
+                    self.population.perform_cash_tx(account.id, -amount)
+                    self.transaction_list.append(transaction)
+                    self.tx_id += 1
 
             # Execute the transactions for the user
-            for _ in range(0, account.get_number_of_txs):
+            for _ in range(0, account.get_number_of_txs()):
                 beneficiary_id = self.community.get_random_destination_for(account.id, account.new_beneficiary_ratio)
-                amount = account.get_amount()
+                amount = account.get_tx_amount()
 
-                self.__execute_transaction(account.id, beneficiary_id, amount, time, _c.GENERAL.NORMAL)
+                self.__execute_transaction(account.id, beneficiary_id, amount, time, _c.GENERAL.RANDOM, False)
 
             self.__check_flush_tx_to_file()
 
@@ -213,13 +214,24 @@ class Simulation:
         fan_out_list = self.community.get_fan_out_list()
         self.population.update_accounts_connections(fan_in_list, fan_out_list)
 
-    def __execute_transaction(self, src, dst, amt, time, tx_type):
-        transaction = (self.tx_id, src, dst, amt, time, tx_type)
-        outcome = self.population.send_transaction(src, dst, amt)
+    def __execute_transaction(self, src, dst, amt, time, tx_type, is_aml):
+        transaction = (self.tx_id, src, dst, amt, time, tx_type, is_aml)
+        outcome = self.population.send_transaction(src, dst, amt, tx_type)
         if outcome:
             self.transaction_list.append(transaction)
             self.community.add_link(src, dst)
             self.tx_id += 1
+        else:
+            balance = self.population.accounts[src].balance
+            if tx_type in [_c.GENERAL.CYCLE, _c.GENERAL.U, _c.GENERAL.SCATTER_GATHER]:
+                logging.critical("Missed transaction on user " + str(src) + " : balance = " + str(balance) + "and amount = " + str(amt)
+                                 + " on pattern " + str(tx_type))
+            elif tx_type == _c.GENERAL.BIPARTITE:
+                logging.error("Missed transaction on user " + str(src) + " : balance = " + str(balance) + "and amount = " + str(amt) + " on pattern "
+                              + str(tx_type))
+            else:
+                logging.warning("Missed transaction on user " + str(src) + " : balance = " + str(balance) + "and amount = " + str(amt)
+                                + " on pattern " + str(tx_type))
 
     def __check_flush_tx_to_file(self):
         if len(self.transaction_list) >= 10000:

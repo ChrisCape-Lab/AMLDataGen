@@ -29,7 +29,7 @@ class DataWriter:
         # Insert header into transactions.csv
         with open(self.transaction_file, 'w') as f:
             writer = csv.writer(f)
-            header = ['id', 'src', 'dst', 'amt', 'time', 'type']
+            header = ['id', 'src', 'dst', 'amt', 'time', 'type', 'is_aml']
             writer.writerow(header)
 
     def write_accounts_info(self, accounts: list) -> None:
@@ -45,5 +45,5 @@ class DataWriter:
     def write_transactions(self, transactions: list) -> None:
         with open(self.transaction_file, 'a') as f:
             writer = csv.writer(f)
-            for id, src, dst, amt, time, type in transactions:
-                writer.writerow([id, src, dst, amt, time, type])
+            for id, src, dst, amt, time, type, is_aml in transactions:
+                writer.writerow([id, src, dst, amt, time, type, is_aml])
