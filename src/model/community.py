@@ -10,10 +10,15 @@ from src._variables import COMMUNITY
 
 
 class CommunityNode:
-    def __init__(self, node_id, avg_fan_out, avg_fan_in):
+    def __init__(self, node_id, capacity, patterns_list, avg_fan_out, avg_fan_in):
         self.id = node_id
+        self.capacity = capacity
+        self.patterns = patterns_list
         self.avg_fan_out = avg_fan_out
         self.avg_fan_in = avg_fan_in
+
+    def attributes_to_dict(self):
+        return {'capacity': self.capacity}
 
 
 class Community:
@@ -78,13 +83,20 @@ class Community:
     # ------------------------------------------
 
     def add_node(self, node: Account):
-        self.nodes[node.id] = CommunityNode(node.id, node.avg_tx_per_step, None)
+        self.nodes[node.id] = CommunityNode(node.id, node.available_balance, node.behaviours, node.avg_tx_per_step, None)
 
     def add_link(self, source: int, destination: int) -> None:
         if destination in self.get_destinations_for(source):
             return
 
         self.connection_graph.add_edge(source, destination)
+
+    def update_attributes(self):
+        attr_dict = dict()
+        for node in self.nodes:
+            attr_dict[node.id] = node.capacity
+
+        nx.set_node_attributes(self.connection_graph, name="capacity", values=attr_dict)
 
     # INITIALIZERS
     # ------------------------------------------

@@ -1,0 +1,4 @@
+bank_name,compromising_ratio,launderer_ratio
+bank_a,0.1,0.1
+bank_b,0.1,0.6
+bank_c,0.1,0.3

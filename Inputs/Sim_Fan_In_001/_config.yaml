@@ -1,0 +1,24 @@
+
+Simulation_name: "Sim_001"
+
+Parameters_file: "Parameters.txt"
+
+Input_files:
+  input_folder: "Inputs/"
+  account_file: "Accounts.csv"
+  bank_file: "Banks.csv"
+  normal_pattern_file: "Normal_Patterns.csv"
+  ml_pattern_file: "ML_Patterns.csv"
+
+Output_files:
+  output_folder: "Outputs/"
+  account_file: "Accounts.csv"
+  transaction_file: "Transactions.csv"
+  normal_patterns_file: "Normal_Patterns.csv"
+  ml_patterns_file: "ML_Patterns.csv"
+
+
+
+
+
+

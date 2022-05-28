@@ -1,0 +1,9 @@
+count,pattern_type,period,min_amount,max_amount,min_accounts,max_accounts,scheduling
+100,Fan_in,7,10000,15000,10,12,Instant
+100,Fan_out,10,500,800,6,12,Random
+100,Cycle,8,1000,2000,6,10,Periodic
+100,Scatter-Gather,12,1000,2000,10,12,Random
+100,Gather-Scatter,16,1000,2000,10,12,Periodic
+100,U_Pattern,9,1000,2000,4,6,Periodic
+100,Repeated,4,1000,2000,2,2,Random
+100,Bipartite,10,1000,2000,12,16,Random

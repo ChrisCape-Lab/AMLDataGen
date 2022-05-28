@@ -2,6 +2,7 @@
 This file contains just a bunch of constants used in the generator. The value assigned to each constant is not significative, is just an integer used
 to consume the lowest possible memory. Basically, this is just a sort of list of words coded as number for efficiency.
 """
+import pandas as pd
 
 
 class GENERAL:
@@ -20,8 +21,9 @@ class GENERAL:
     U = 5
     REPEATED = 6
     BIPARTITE = 7
-    CASH_IN = 8
-    CASH_OUT = 9
+    RANDOM_P = 8
+    CASH_IN = 9
+    CASH_OUT = 10
 
     TOT_PATTERNS = 8
 
@@ -70,19 +72,12 @@ class SCHEDULING:
 
 if __name__ == "__main__":
     import networkx as nx
-    from src.utils import add_to_dict_of_list, addn_to_dict_of_list
 
-    d = {0: []}
-    add_to_dict_of_list(d, 0, (0, 1))
-    for a, b in d.get(0, "hey"):
-        print(a)
-    exit()
+    graph = nx.Graph()
+    graph.add_node(0, {'attr1': 1, 'attr2': 2})
+    graph.add_node(1)
 
-    G = nx.Graph()
-    G.add_edge(1, 2, color='red', weight=0.84, size=300)
-
-    for key, value in G[1].items():
-        print(key, value)
+    print(graph[0])
 
 
 

@@ -27,7 +27,6 @@ class AMLDataGen:
 
         # Entities
         self.population = Population()
-        self.community = Community()
 
         # Patterns
         self.normal_patterns = list()
@@ -84,7 +83,7 @@ class AMLDataGen:
                 balance_limit_percentage = row['balance_limit_percentage']
                 business = row['business']
                 behaviours = row['behaviours']
-                bank_id = row['bank_id'] if row['bank_id'] != 'rnd' else random.choice(range(0, self.population.get_bank_nums()))
+                bank_id = row['bank_id'] if row['bank_id'] != 'rnd' else random.choice(range(0, len(self.population.get_bank_ids())))
                 community = None
                 avg_tx_per_step = row['avg_tx_per_step']
                 min_amount = random.gauss(row['min_tx_amount'], row['min_tx_amount']/6)
@@ -97,7 +96,6 @@ class AMLDataGen:
                                   avg_tx_per_step, min_amount, max_amount, compromising_ratio, role)
 
                 self.population.add_account(account)
-                self.community.add_node(account)
                 acct_id += 1
         out = "Init: accounts loaded correctly"
         print(out)
@@ -155,8 +153,7 @@ class AMLDataGen:
     # ------------------------------------------
 
     def create_simulation(self):
-        self.__simulation = Simulation(self.population, self.community, self.data_writer, start_time=0,
-                                       end_time=self.end_time)
+        self.__simulation = Simulation(self.population, self.data_writer, start_time=0, end_time=self.end_time)
         self.__simulation.load_normal_patterns(self.normal_patterns)
         self.__simulation.load_ml_patterns(self.ml_patterns)
         out = "Sim: simulation created correctly"

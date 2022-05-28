@@ -4,7 +4,7 @@ import networkx as nx
 
 import src._constants as _c
 import src._variables as _v
-from src.utils import random_chunk, add_to_dict_of_list, addn_to_dict_of_list
+from src.utils import random_chunk, add_to_dict_of_list, integer_amount_partition, NodeRequirements
 
 NORMAL_AMT = 0
 ROUNDED = 1
@@ -19,7 +19,7 @@ def get_rounded(value):
         rounded_amt = str(most_significant_nums).ljust(digits, '0')
 
         assert int(rounded_amt) > 0
-        return int(rounded_amt)
+        return round(int(rounded_amt), 2)
     else:
         print("Negative Amount!")
 
@@ -45,6 +45,7 @@ class Pattern:
         self.rounded_ratio = rounded_ratio
         self.under_threshold_ratio = under_threshold_ratio
         self.transactions = dict()
+        self.schedule_cashes = False
         self.is_aml = is_aml
 
     # SETTERS
@@ -52,6 +53,9 @@ class Pattern:
 
     def add_nodes(self, nodes_map: dict) -> None:
         self.accounts_map = {**self.accounts_map, **nodes_map}
+
+    def schedule_caches(self, schedule_caches: bool) -> None:
+        self.schedule_cashes = schedule_caches
 
     # PRIVATE
     # ------------------------------------------
@@ -69,7 +73,7 @@ class Pattern:
         else:
             raise NotImplementedError
 
-    def _schedule(self, num_tx, start_time):
+    def _schedule_time(self, num_tx, start_time):
         end_time = start_time + self.period
 
         # INSTANT SCHEDULING: each tx is executed in the same day as others
@@ -91,85 +95,131 @@ class Pattern:
 
         return scheduling_times
 
+    def _schedule_cashes(self, start_time: int) -> None:
+        # Schedule cashes in for sources
+        _, requirements = self.get_sources_requirements()
+        for node_id, node_requirement in requirements.items():
+            num_cashes = random.randint(_v.PATTERN.CASH_NUM_MIN, _v.PATTERN.CASH_NUM_MAX)
+            single_amount, remaining = integer_amount_partition(node_requirement.get(_c.GENERAL.BALANCE), num_cashes)
+            amounts = [single_amount] * num_cashes
+            amounts.append(remaining)
+            for amt in amounts:
+                transaction = (None, node_id, amt, start_time, _c.GENERAL.CASH_IN)
+                add_to_dict_of_list(self.transactions, start_time, transaction)
+
+        # Schedule cashes out for destinations
+        for node_id, n_attr in self.structure.nodes(data=True):
+            if n_attr['role'] != 'd':
+                continue
+
+            amount = 0
+            for pred in self.structure.predecessors(node_id):
+                for _, weight in self.structure[pred][node_id].items():
+                    amount += weight
+
+            num_cashes = random.randint(_v.PATTERN.CASH_NUM_MIN, _v.PATTERN.CASH_NUM_MAX)
+            single_amount, remaining = integer_amount_partition(amount, num_cashes)
+            amounts = [single_amount] * num_cashes
+            amounts.append(remaining)
+            for amt in amounts:
+                transaction = (None, node_id, amt, start_time, _c.GENERAL.CASH_IN)
+                add_to_dict_of_list(self.transactions, start_time, transaction)
+
     # REQUIREMENTS
     # ------------------------------------------
 
-    def get_sources_requirements(self):
-        num_sources = 0
-        requirements = dict()
+    def get_pattern_graph_for_isomorphism(self) -> nx.Graph:
+        weight_dict = dict()
         for node_id, n_attr in self.structure.nodes(data=True):
-            if n_attr['role'] != 's':
-                continue
-
-            node_req = dict()
-            fan_out = len(self.structure.successors(node_id))
-            amount = 0
-            for _, e_attr in self.structure[node_id].items():
-                    amount += e_attr['weight']
-
-            node_req[_c.GENERAL.FAN_OUT_NAME] = fan_out
-            node_req[_c.GENERAL.BALANCE] = amount
-
-            requirements[node_id] = node_req
-            num_sources += 1
-
-        assert len(requirements) == num_sources
-
-        return num_sources, requirements
-
-    def get_layerer_requirements(self):
-        num_layerers = 0
-        requirements = dict()
-        for node_id, n_attr in self.structure.nodes(data=True):
-            if n_attr['role'] != 'l':
-                continue
-
-            node_req = dict()
-            fan_out = len(self.structure.successors(node_id))
-            fan_in = len(self.structure.predecessors(node_id))
-
             amount = 0
             for _, e_attr in self.structure[node_id].items():
                 amount += e_attr['weight']
             for pre_id in self.structure.predecessors(node_id):
                 amount -= self.structure[pre_id][node_id]['weight']
 
-            node_req[_c.GENERAL.FAN_OUT_NAME] = fan_out
-            node_req[_c.GENERAL.FAN_IN_NAME] = fan_in
-            node_req[_c.GENERAL.BALANCE] = amount
+            weight_dict[node_id] = amount
 
-            requirements[node_id] = node_req
-            num_layerers += 1
+        nx.set_node_attributes(self.structure, name=_c.GENERAL.AVAILABLE_BALANCE, values=weight_dict)
 
-        assert len(requirements) == num_layerers
+        return self.structure
 
-        return num_layerers, requirements
+    def get_sources_requirements(self) -> list:
+        requirements = list()
+        for node_id, n_attr in self.structure.nodes(data=True):
+            if n_attr['role'] != 's':
+                continue
 
-    def get_destinations_requirements(self):
-        num_destinations = 0
-        requirements = dict()
+            requirement = NodeRequirements(node_id)
+
+            fan_out = len(self.structure.successors(node_id))
+            requirement.add_requirement(_c.GENERAL.FAN_OUT_NAME, ">=", fan_out)
+
+            amount = 0
+            if not self.schedule_cashes:
+                for _, e_attr in self.structure[node_id].items():
+                    amount += e_attr['weight']
+            requirement.add_requirement(_c.GENERAL.AVAILABLE_BALANCE, ">", amount)
+
+            requirements.append(requirement)
+
+        return requirements
+
+    def get_layerer_requirements(self) -> list:
+        requirements = list()
+        for node_id, n_attr in self.structure.nodes(data=True):
+            if n_attr['role'] != 'l':
+                continue
+
+            requirement = NodeRequirements(node_id)
+            fan_out = len(self.structure.successors(node_id))
+            requirement.add_requirement(_c.GENERAL.FAN_OUT_NAME, ">=", fan_out)
+
+            fan_in = len(self.structure.predecessors(node_id))
+            requirement.add_requirement(_c.GENERAL.FAN_IN_NAME, ">=", fan_in)
+
+            amount = 0
+            for _, e_attr in self.structure[node_id].items():
+                amount += e_attr['weight']
+            for pre_id in self.structure.predecessors(node_id):
+                amount -= self.structure[pre_id][node_id]['weight']
+            requirement.add_requirement(_c.GENERAL.AVAILABLE_BALANCE, ">", amount)
+
+            requirements.append(requirement)
+
+        return requirements
+
+    def get_destinations_requirements(self) -> list:
+        requirements = list()
         for node_id, n_attr in self.structure.nodes(data=True):
             if n_attr['role'] != 'd':
                 continue
 
-            node_req = dict()
+            requirement = NodeRequirements(node_id)
             fan_in = len(self.structure.predecessors(node_id))
-            node_req[_c.GENERAL.FAN_IN_NAME] = fan_in
+            requirement.add_requirement(_c.GENERAL.FAN_IN_NAME, ">=", fan_in)
 
-            requirements[node_id] = node_req
-            num_destinations += 1
+            # This is not a requirement but it's necessary to update the destination available balance
+            amount = 0
+            for pre_id in self.structure.predecessors(node_id):
+                amount -= self.structure[pre_id][node_id]['weight']
+            requirement.add_requirement(_c.GENERAL.AVAILABLE_BALANCE, ">", amount)
 
-        assert len(requirements) == num_destinations
+            requirements.append(requirement)
 
-        return num_destinations, requirements
+        return requirements
 
     # BEHAVIOUR
     # ------------------------------------------
 
+    def schedule(self, start_time: int) -> None:
+        self._schedule(start_time)
+        if self.is_aml and self.schedule_cashes:
+            self._schedule_cashes(start_time)
+
     def create_structure(self: int) -> None:
         raise NotImplementedError
 
-    def schedule(self, start_time: int) -> None:
+    def _schedule(self, start_time: int) -> None:
         raise NotImplementedError
 
     def schedule_txs(self, time: int) -> list:
@@ -190,10 +240,10 @@ class RandomPattern(Pattern):
         self.structure.add_node(1, role='d')
         self.structure.add_edge(0, 1, weight=self._get_amount(self.amount))
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         source = self.accounts_map[0]
         destination = self.accounts_map[1]
-        scheduling_time = self._schedule(1, start_time)[0]
+        scheduling_time = self._schedule_time(1, start_time)[0]
         weight = self.structure[0][1]['weight']
         transaction = (source, destination, weight, scheduling_time, _c.GENERAL.RANDOM)
         add_to_dict_of_list(self.transactions, scheduling_time, transaction)
@@ -218,9 +268,9 @@ class FanInPattern(Pattern):
             self.structure.add_node(i, role='s')
             self.structure.add_edge(i, destination_node_id, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges())
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
         for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
@@ -248,9 +298,9 @@ class FanOutPattern(Pattern):
             self.structure.add_node(i, role='d')
             self.structure.add_edge(source_node_id, i, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges())
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
         for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
@@ -275,9 +325,9 @@ class CyclePattern(Pattern):
             self.structure.add_edge(i - 1, i, weight=single_amount)
         self.structure.add_edge(self.num_accounts - 1, 0, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges(data=True))
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
         for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
@@ -308,9 +358,9 @@ class ScatterGatherPattern(Pattern):
             self.structure.add_edge(source_node_id, i, weight=single_amount)
             self.structure.add_edge(i, destination_node_id, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges())
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
         first_step_tx = list(filter(lambda x: x[0] == 0, self.structure.edges(data=True)))
         first_step_tx.sort(key=lambda x: x[1])
         second_step_tx = list(filter(lambda x: x[1] == self.num_accounts - 1, self.structure.edges(data=True)))
@@ -356,9 +406,9 @@ class GatherScatterPattern(Pattern):
             self.structure.add_node(i, role='d')
             self.structure.add_edge(intermediate_node_id, i, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges(data=True))
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
         for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
             destination = self.accounts_map[dst]
@@ -383,9 +433,9 @@ class UPattern(Pattern):
             self.structure.add_edge(i - 1, i, weight=single_amount)
             self.structure.add_edge(i, i - 1, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges(data=True))
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
 
         tx_index = 0
         for i in range(1, int(self.num_accounts)):
@@ -424,9 +474,9 @@ class RepeatedPattern(Pattern):
         for i in range(0, num_tx):
             self.structure.add_edge(0, 1, weight=single_amount)
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges(data=True))
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
 
         for i, (src, dst, attr) in enumerate(self.structure.edges(data=True)):
             source = self.accounts_map[src]
@@ -495,9 +545,9 @@ class BipartitePattern(Pattern):
 
             step += 1
 
-    def schedule(self, start_time):
+    def _schedule(self, start_time):
         num_tx = len(self.structure.edges(data=True))
-        scheduling_times = self._schedule(num_tx, start_time)
+        scheduling_times = self._schedule_time(num_tx, start_time)
 
         ordered_tx_list = list(self.structure.edges(data=True)).copy()
         ordered_tx_list.sort(key=lambda x: x[2]['step'])
@@ -512,7 +562,7 @@ class BipartitePattern(Pattern):
 def create_pattern(pattern_id: int, pattern_type: int, num_accounts: int, period: int, amount: float, is_aml: bool,
                    rounded_ratio: float = .0, under_threshold_ratio: float = .0,
                    scheduling_type: int = _c.SCHEDULING.RANDOM) -> Pattern:
-    if pattern_type == _c.GENERAL.RANDOM:
+    if pattern_type == _c.GENERAL.RANDOM_P:
         return RandomPattern(pattern_id, pattern_type, num_accounts, period, amount, is_aml, rounded_ratio,
                             under_threshold_ratio, scheduling_type)
     elif pattern_type == _c.GENERAL.FAN_IN:

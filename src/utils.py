@@ -6,6 +6,30 @@ from random import randint
 from _constants import GENERAL, SCHEDULING
 
 
+class NodeRequirements:
+    def __init__(self, node_id):
+        self.__node_id_to_map = node_id
+        self.__node_requirements = dict()
+
+    def get_node_id_to_map(self):
+        return self.__node_id_to_map
+
+    def get_requirement_value(self, key: str) -> int:
+        _, value = self.__node_requirements[key]
+        return value
+
+    def get_requirement_as_condition(self, key: str) -> (str, int):
+        sign, value = self.__node_requirements[key]
+        requirement = key + " " + sign + " " + str(value)
+        return requirement
+
+    def get_requirements_keys(self):
+        return self.__node_requirements.keys()
+
+    def add_requirement(self, key: str, sign: str, value: int) -> None:
+        self.__node_requirements[key] = (sign, value)
+
+
 def add_to_dict_of_list(dictionary: dict, dict_key, dict_item) -> None:
     if dict_key in dictionary.keys():
         dictionary[dict_key].append(dict_item)
@@ -30,6 +54,13 @@ def random_chunk(li, min_chunk=1, max_chunk=3):
             break
 
 
+def integer_amount_partition(amount: float, number_batch: int):
+    q = round(amount / number_batch, 2)
+    r = round(amount - q * number_batch, 2)
+
+    return q, r
+
+
 # LOADING UTILS
 # ------------------------------------------
 
@@ -45,7 +76,9 @@ def scheduling_string_to_const(scheduling_str: str) -> int:
 
 
 def pattern_string_to_const(pattern_str: str) -> int:
-    if pattern_str == 'Fan_in':
+    if pattern_str == 'Random':
+        return GENERAL.RANDOM_P
+    elif pattern_str == 'Fan_in':
         return GENERAL.FAN_IN
     elif pattern_str == 'Fan_out':
         return GENERAL.FAN_OUT
