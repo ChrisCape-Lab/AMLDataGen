@@ -6,19 +6,20 @@ from src.model.population import Account
 from src.utils import get_degrees
 
 import src._constants as _c
-from src._variables import COMMUNITY
+import src._variables as _v
 
 
 class CommunityNode:
-    def __init__(self, node_id, capacity, patterns_list, avg_fan_out, avg_fan_in):
+    def __init__(self, node_id, sched_balance, patterns_list, node_type, avg_fan_out, avg_fan_in):
         self.id = node_id
-        self.capacity = capacity
+        self.sched_balance = sched_balance
         self.patterns = patterns_list
+        self.type = node_type
         self.avg_fan_out = avg_fan_out
         self.avg_fan_in = avg_fan_in
 
     def attributes_to_dict(self):
-        return {'capacity': self.capacity}
+        return {_c.ACCTS_DF_ATTR.S_SCHED_BALANCE: self.sched_balance, 'patterns': self.patterns, 'type': self.type}
 
 
 class Community:
@@ -40,13 +41,13 @@ class Community:
 
     def get_sources_for(self, node_id: int) -> list:
         if self.connection_graph.is_directed():
-            return self.connection_graph.successors(node_id)
+            return [x for x in self.connection_graph.successors(node_id)]
         else:
             return self.get_neighbours_for(node_id)
 
     def get_destinations_for(self, node_id: int) -> list:
         if self.connection_graph.is_directed():
-            return self.connection_graph.predecessors(node_id)
+            return [x for x in self.connection_graph.predecessors(node_id)]
         else:
             return self.get_neighbours_for(node_id)
 
@@ -60,7 +61,7 @@ class Community:
             return random.choice(list(new_available_destinations))
 
     def get_neighbours_for(self, node_id: int) -> list:
-        return self.connection_graph.neighbors(node_id)
+        return [x for x in self.connection_graph.neighbors(node_id)]
 
     def get_unknown_nodes_for(self, node_id: int) -> list:
         return list(set(self.connection_graph.nodes()) - set(self.get_destinations_for(node_id)))
@@ -83,7 +84,7 @@ class Community:
     # ------------------------------------------
 
     def add_node(self, node: Account):
-        self.nodes[node.id] = CommunityNode(node.id, node.available_balance, node.behaviours, node.avg_tx_per_step, None)
+        self.nodes[node.id] = CommunityNode(node.id, node.available_balance, node.behaviours, node.role, node.avg_tx_per_step, None)
 
     def add_link(self, source: int, destination: int) -> None:
         if destination in self.get_destinations_for(source):
@@ -92,29 +93,36 @@ class Community:
         self.connection_graph.add_edge(source, destination)
 
     def update_attributes(self):
-        attr_dict = dict()
-        for node in self.nodes:
-            attr_dict[node.id] = node.capacity
-
-        nx.set_node_attributes(self.connection_graph, name="capacity", values=attr_dict)
+        attributes_dict = dict()
+        for n_id, node in self.nodes.items():
+            attributes_dict[n_id] = node.attributes_to_dict()
+        nx.set_node_attributes(self.connection_graph, attributes_dict)
 
     # INITIALIZERS
     # ------------------------------------------
-    def create_community(self, community_type: int = _c.COMMUNITY.FULL_RANDOM, directed: bool = True, deg_file: str = ''):
-        if community_type == _c.COMMUNITY.FULL_RANDOM:
+    def create_community(self, community_type: int = _c.COMM_TYPE.FULL_RANDOM, directed: bool = True, deg_file: str = ''):
+        # Create connections
+        if community_type == _c.COMM_TYPE.FULL_RANDOM:
             self.create_full_random_connections(directed)
-        elif community_type == _c.COMMUNITY.RANDOM:
+        elif community_type == _c.COMM_TYPE.RANDOM:
             self.create_random_communities(directed)
-        elif community_type == _c.COMMUNITY.STRUCTURED_RANDOM:
-            self.create_random_structured_communities(directed)
-        elif community_type == _c.COMMUNITY.FROM_FILE:
+        elif community_type == _c.COMM_TYPE.STRUCTURED_RANDOM:
+            self.create_random_structured_communities()
+        elif community_type == _c.COMM_TYPE.FROM_FILE:
             self.load_communities_from_deg_file(deg_file)
         else:
             raise NotImplementedError
 
+        # Add nodes attributes
+        assert len(self.connection_graph.nodes) == len(self.nodes.items())
+        attributes_dict = dict()
+        for n_id, node in self.nodes.items():
+            attributes_dict[n_id] = node.attributes_to_dict()
+        nx.set_node_attributes(self.connection_graph, attributes_dict)
+
     def create_full_random_connections(self, directed=True):
         """Creates a fully random connection among accounts, ignoring both business and fan_out"""
-        connection_number = (len(self.nodes) ** 2) * COMMUNITY.DEF_RND_COMMUNITY_DENSITY
+        connection_number = (len(self.nodes) ** 2) * _v.COMM.DEF_RND_COMMUNITY_DENSITY
 
         if directed:
             connection_number = connection_number * 2
@@ -126,22 +134,22 @@ class Community:
         if not directed:
             self.connection_graph = nx.Graph()
 
-        self.connection_graph.add_nodes_from(range(0, len(self.nodes)))
+        self.connection_graph.add_nodes_from(self.get_nodes_ids())
 
         for node in self.nodes:
-            initial_known_nodes_num = max(random.sample(range(COMMUNITY.DEF_MIN_KNOWN_NODES, COMMUNITY.DEF_MAX_KNOWN_NODES),
+            initial_known_nodes_num = max(random.sample(range(_v.COMM.DEF_MIN_KNOWN_NODES, _v.COMM.DEF_MAX_KNOWN_NODES),
                                                         k=node.avg_fan_out))
             known_nodes = random.sample(self.nodes, k=initial_known_nodes_num)
 
             for known_node in known_nodes:
                 self.connection_graph.add_edge(known_node.id, known_node)
 
-    def create_random_structured_communities(self, directed=False):
+    def create_random_structured_communities(self):
         # Creates nodes community
         remaining_nodes = set(range(0, len(self.nodes)))
         community_id = 0
         while len(remaining_nodes) != 0:
-            community_dim = random.randint(COMMUNITY.DEF_MIN_COMM_SIZE, COMMUNITY.DEF_MAX_COMM_SIZE)
+            community_dim = random.randint(_v.COMM.DEF_MIN_COMM_SIZE, _v.COMM.DEF_MAX_COMM_SIZE)
             try:
                 community_nodes = random.sample(remaining_nodes, k=community_dim)
             except ValueError:

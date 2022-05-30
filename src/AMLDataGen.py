@@ -1,5 +1,4 @@
 import logging
-import os
 import random
 import yaml
 
@@ -8,11 +7,48 @@ import pandas as pd
 import src._constants as _c
 import src._variables as _v
 from src.model.population import Population, Account, Bank
-from src.model.community import Community
 from src.model.datawriter import DataWriter
 from src.model.simulation import Simulation
 from src.model.pattern import create_pattern
-from src.utils import scheduling_string_to_const, pattern_string_to_const
+
+
+# UTILS
+# ------------------------------------------
+
+def scheduling_string_to_const(scheduling_str: str) -> int:
+    if scheduling_str == 'Random':
+        return _c.SCHEDULING.RANDOM
+    elif scheduling_str == 'Periodic':
+        return _c.SCHEDULING.PERIODIC
+    elif scheduling_str == 'Instant':
+        return _c.SCHEDULING.INSTANT
+    else:
+        raise NotImplementedError
+
+
+def pattern_string_to_const(pattern_str: str) -> int:
+    if pattern_str == 'Random':
+        return _c.PTRN_TYPE.RANDOM_P
+    elif pattern_str == 'Fan_in':
+        return _c.PTRN_TYPE.FAN_IN
+    elif pattern_str == 'Fan_out':
+        return _c.PTRN_TYPE.FAN_OUT
+    elif pattern_str == 'Cycle':
+        return _c.PTRN_TYPE.CYCLE
+    elif pattern_str == 'Scatter-Gather':
+        return _c.PTRN_TYPE.SCATTER_GATHER
+    elif pattern_str == 'Gather-Scatter':
+        return _c.PTRN_TYPE.GATHER_SCATTER
+    elif pattern_str == 'U_Pattern':
+        return _c.PTRN_TYPE.U
+    elif pattern_str == 'Repeated':
+        return _c.PTRN_TYPE.REPEATED
+    elif pattern_str == 'Bipartite':
+        return _c.PTRN_TYPE.BIPARTITE
+
+
+# AMLDATAGEN CLASS
+# ------------------------------------------
 
 
 class AMLDataGen:
@@ -34,7 +70,7 @@ class AMLDataGen:
 
         # Simulator Data
         self.__simulation = None
-        self.end_time = _v.SIMULATION.DEF_END_TIME
+        self.end_time = _v.SIM.DEF_END_TIME
 
         # Output files
         output_files = self.config['Output_files']
@@ -89,7 +125,7 @@ class AMLDataGen:
                 min_amount = random.gauss(row['min_tx_amount'], row['min_tx_amount']/6)
                 max_amount = random.gauss(row['max_tx_amount'], row['max_tx_amount']/6)
                 compromising_ratio = random.uniform(row['compromising_ratio']-0.1, row['compromising_ratio']+0.1)
-                role = _c.ACCOUNT.NORMAL
+                role = _c.ACCTS_ROLES.NORMAL
 
                 assert balance > 0 and min_amount > 0 and max_amount > 0
                 account = Account(acct_id, balance, balance_limit_percentage, business, behaviours, bank_id,
@@ -164,7 +200,7 @@ class AMLDataGen:
         out = "Sim: Starting simulation"
         print(out)
         logging.info(out)
-        self.__simulation.setup(_v.SIMULATION.DEF_ALLOW_RANDOM_TXS)
+        self.__simulation.setup(_v.SIM.DEF_ALLOW_RANDOM_TXS)
         self.__simulation.run()
 
     def simulation_step(self):

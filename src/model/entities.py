@@ -26,7 +26,7 @@ class Account:
         self.id = int(acct_id)
 
         # Type of business of the account, one among RETAIL or CORPORATE
-        self.business = _c.ACCOUNT.BUSINESS_TYPE[business]
+        self.business = _c.ACCTS_BUSINESS.BUSINESS_TYPE[business]
 
         #
         self.balance = round(balance, 2)
@@ -59,13 +59,15 @@ class Account:
 
     @classmethod
     def get_dataframe_columns(cls) -> list:
-        return ['id', 'business', _c.GENERAL.BALANCE, _c.GENERAL.AVAILABLE_BALANCE, 'nationality', 'bank_id',
-                'avg_tx_per_step', 'compromising_ratio', 'role']
+        return [_c.ACCTS_DF_ATTR.S_ID, _c.ACCTS_DF_ATTR.S_BUSINESS, _c.ACCTS_DF_ATTR.S_BALANCE, _c.ACCTS_DF_ATTR.S_SCHED_BALANCE,
+                _c.ACCTS_DF_ATTR.S_NATIONALITY, _c.ACCTS_DF_ATTR.S_BANK_ID, _c.ACCTS_DF_ATTR.S_AVG_TX_PER_STEP, _c.ACCTS_DF_ATTR.S_COMPROM_RATIO,
+                _c.ACCTS_DF_ATTR.S_ROLE]
 
     @classmethod
     def get_dataframe_column_type(cls) -> dict:
-        return {'id': int, 'business': int, _c.GENERAL.BALANCE: float, _c.GENERAL.AVAILABLE_BALANCE: float,
-                'nationality': int, 'bank_id': int, 'avg_tx_per_step': float, 'compromising_ratio': float, 'role': int}
+        return {_c.ACCTS_DF_ATTR.S_ID: int, _c.ACCTS_DF_ATTR.S_BUSINESS: int, _c.ACCTS_DF_ATTR.S_BALANCE: float,
+                _c.ACCTS_DF_ATTR.S_SCHED_BALANCE: float, _c.ACCTS_DF_ATTR.S_NATIONALITY: int, _c.ACCTS_DF_ATTR.S_BANK_ID: int,
+                _c.ACCTS_DF_ATTR.S_AVG_TX_PER_STEP: float, _c.ACCTS_DF_ATTR.S_COMPROM_RATIO: float, _c.ACCTS_DF_ATTR.S_ROLE: int}
 
     # PRIVATE INITIALIZERS METHODS
     # ------------------------------------------
@@ -73,7 +75,7 @@ class Account:
     @staticmethod
     def __handle_behaviours(behaviours_in: str) -> list:
         if behaviours_in == 'all':
-            return [i for i in range(0, _c.GENERAL.TOT_PATTERNS)]
+            return [i for i in range(0, _c.PTRN_TYPE.TOT_PATTERNS)]
 
         behaviours_list = behaviours_in.split("_")
         behaviours_list = [int(x) for x in behaviours_list]
@@ -92,7 +94,7 @@ class Account:
     # ------------------------------------------
     @staticmethod
     def get_number_of_cash_tx() -> int:
-        return random.randint(_v.ACCOUNT.CASH_TX_MIN, _v.ACCOUNT.CASH_TX_MAX)
+        return random.randint(_v.ACCOUNT.DEF_CASH_TX_MIN, _v.ACCOUNT.DEF_CASH_TX_MAX)
 
     def get_cash_in_amount(self) -> float:
         return round(random.uniform(self.min_amount, self.max_amount), 2)

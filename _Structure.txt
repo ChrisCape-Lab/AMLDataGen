@@ -1,5 +1,13 @@
+==== IMPROVEMENTS ====
+ - New patterns: cash-in, cash_out, occasional_mule
+ - Possible multi-class classification due to role organization (source, layer, dest)
+ - Simple, compact, customizable and extensible
 
 
+Issues
+ - low available data to imitate
+ - performance issue with large instances
+ - variable structures and behaviour
 
 
 ==== INPUTS ====

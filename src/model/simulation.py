@@ -3,10 +3,9 @@ import random
 from datetime import datetime
 
 from src.model.population import Population
-from src.model.community import Community
 from src.model.datawriter import DataWriter
 from src.model.pattern import Pattern
-from src.utils import NodeRequirements, add_to_dict_of_list
+from src.utils import add_to_dict_of_list
 
 import src._constants as _c
 import src._variables as _v
@@ -41,6 +40,7 @@ def handle_requirements(df: pd.DataFrame, role: int, n: int, node_requirements: 
     return nodes_dict
 """
 
+
 class Simulation:
     def __init__(self, population: Population, datawriter: DataWriter, start_time: int, end_time: int):
         self.population = population
@@ -70,7 +70,7 @@ class Simulation:
     def load_ml_patterns(self, patterns: list) -> None:
         for pattern in patterns:
             time = random.randint(self.start_time, self.end_time)
-            pattern.schedule_cashes(_v.SIMULATION.DEF_SCHEDULE_CASHES_WITH_ML_PATTERNS)
+            pattern.schedule_cashes(_v.SIM.DEF_SCHEDULE_CASHES_WITH_ML_PATTERNS)
             pattern.create_structure()
             add_to_dict_of_list(self.ml_patterns_to_schedule, time, pattern)
 
@@ -79,8 +79,8 @@ class Simulation:
 
     def setup(self, allow_random_txs: bool) -> None:
         self.allow_random_tx = allow_random_txs
-        self.population.create_launderers(_v.SIMULATION.DEF_LAUNDERERS_CREATION_MODE)
-        self.population.create_community(community_type=_v.COMMUNITY.DEF_COMMUNITY_TYPE)
+        self.population.create_launderers(_v.SIM.DEF_LAUNDERERS_CREATION_MODE)
+        self.population.create_community(community_type=_v.COMM.DEF_COMMUNITY_TYPE)
         self.population.update_accounts_connections()
 
     def run(self) -> None:
@@ -107,39 +107,48 @@ class Simulation:
             if self.population.require_cash_in(account_id=account_id):
                 for _ in range(0, self.population.get_number_cash_tx_of(account_id=account_id)):
                     amount = self.population.get_cash_in_amount_for(account_id=account_id)
-                    self.__execute_transaction(None, account_id, amount, time, _c.GENERAL.RANDOM, False)
+                    self.__execute_transaction(None, account_id, amount, time, _c.PTRN_TYPE.RANDOM, False)
 
             # Handle cash-out requests
             if self.population.require_cash_out(account_id=account_id):
                 for _ in range(0, self.population.get_number_cash_tx_of(account_id=account_id)):
                     amount = self.population.get_cash_out_amount_for(account_id=account_id)
-                    self.__execute_transaction(account_id, None, amount, time, _c.GENERAL.RANDOM, False)
+                    self.__execute_transaction(account_id, None, amount, time, _c.PTRN_TYPE.RANDOM, False)
 
     def __handle_patterns_to_schedule(self, time: int) -> None:
 
         def schedule_pattern(pattern: Pattern, is_normal: bool) -> None:
             pattern_type = pattern.pattern_type
 
+            # If the pattern is not related to ML, then a relation search is done in order to respect accounts connections
+            if not pattern.is_aml:
+                node_map = self.population.query_accounts_with_relations(pattern_graph=pattern.get_pattern_graph_for_isomorphism(),
+                                                                     pattern_type=pattern_type, is_aml=pattern.is_aml)
+                if node_map:
+                    pattern.add_node_mapping(node_map)
+                    return
+
+            # If the pattern is AML or the previous search does not produce anything good, then a non-relation search is performed
             # Get the available sources from the dataframe
             requirements = pattern.get_sources_requirements()
-            role = _c.ACCOUNT.NORMAL if is_normal else _c.ACCOUNT.ML_SOURCE
+            role = _c.ACCTS_ROLES.NORMAL if is_normal else _c.ACCTS_ROLES.ML_SOURCE
             sources_map = self.population.query_accounts_without_relations(pattern_type, role, requirements, [])
-            pattern.add_nodes(sources_map)
+            pattern.add_node_mapping(sources_map)
             sources_list = list(sources_map.values())
 
             # Get the available layerers from the dataframe
             requirements = pattern.get_layerer_requirements()
-            role = _c.ACCOUNT.NORMAL if is_normal else _c.ACCOUNT.ML_LAYER
+            role = _c.ACCTS_ROLES.NORMAL if is_normal else _c.ACCTS_ROLES.ML_LAYER
             layerers_map = self.population.query_accounts_without_relations(pattern_type, role, requirements, sources_list)
-            pattern.add_nodes(layerers_map)
+            pattern.add_node_mapping(layerers_map)
             layerers_list = list(layerers_map.values())
 
             # Get the available destination from the dataframe
             requirements = pattern.get_destinations_requirements()
-            role = _c.ACCOUNT.NORMAL if is_normal else _c.ACCOUNT.ML_DESTINATION
+            role = _c.ACCTS_ROLES.NORMAL if is_normal else _c.ACCTS_ROLES.ML_DESTINATION
             destinations_map = self.population.query_accounts_without_relations(pattern_type, role, requirements,
                                                                                 [*sources_list, *layerers_list])
-            pattern.add_nodes(destinations_map)
+            pattern.add_node_mapping(destinations_map)
 
             # After all nodes are added to the pattern, the transactions can be scheduled
             pattern.schedule(time)
@@ -172,21 +181,21 @@ class Simulation:
             cash_in_probability = random.random() > _v.ACCOUNT.DEF_CASH_IN_PROB
             if cash_in_probability and not self.population.require_cash_out(account_id=account_id):
                 amount = self.population.get_cash_in_amount_for(account_id=account_id)
-                self.__execute_transaction(None, account_id, amount, time, _c.GENERAL.RANDOM, False)
+                self.__execute_transaction(None, account_id, amount, time, _c.PTRN_TYPE.RANDOM, False)
 
             # Determine whether to perform a completely random cash_out
             cash_out_probability = random.random() > _v.ACCOUNT.DEF_CASH_OUT_PROB
             if cash_out_probability and not self.population.require_cash_in(account_id=account_id):
                 amount = self.population.get_cash_out_amount_for(account_id=account_id)
                 if amount > 0:
-                    self.__execute_transaction(account_id, None, amount, time, _c.GENERAL.RANDOM, False)
+                    self.__execute_transaction(account_id, None, amount, time, _c.PTRN_TYPE.RANDOM, False)
 
             # Execute the transactions for the user
             for _ in range(0, self.population.get_number_of_txs_for(account_id=account_id)):
                 beneficiary_id = self.population.get_random_destination_for(account_id=account_id)
                 amount = self.population.get_tx_amount_for(account_id=account_id)
 
-                self.__execute_transaction(account_id, beneficiary_id, amount, time, _c.GENERAL.RANDOM, False)
+                self.__execute_transaction(account_id, beneficiary_id, amount, time, _c.PTRN_TYPE.RANDOM, False)
 
             self.__check_flush_tx_to_file()
 
@@ -210,10 +219,10 @@ class Simulation:
             self.transaction_list.append(transaction)
             self.tx_id += 1
         else:
-            if tx_type in [_c.GENERAL.CYCLE, _c.GENERAL.U, _c.GENERAL.SCATTER_GATHER]:
+            if tx_type in [_c.PTRN_TYPE.CYCLE, _c.PTRN_TYPE.U, _c.PTRN_TYPE.SCATTER_GATHER]:
                 logging.critical("Missed transaction on user " + str(src) + " : amount = " + str(amt)
                                  + " on pattern " + str(tx_type))
-            elif tx_type == _c.GENERAL.BIPARTITE:
+            elif tx_type == _c.PTRN_TYPE.BIPARTITE:
                 logging.error("Missed transaction on user " + str(src) + " :  amount = " + str(amt) + " on pattern "
                               + str(tx_type))
             else:
