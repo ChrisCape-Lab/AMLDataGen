@@ -97,7 +97,7 @@ class Pattern:
 
         return scheduling_times
 
-    def _schedule_cashes(self, start_time: int) -> None:
+    def _schedule_entrance(self, start_time: int) -> None:
         # Schedule cashes in for sources
         _, requirements = self.get_sources_requirements()
         for node_id, node_requirement in requirements.items():
@@ -106,10 +106,12 @@ class Pattern:
             amounts = [single_amount] * num_cashes
             amounts.append(remaining)
             for amt in amounts:
-                transaction = (None, node_id, amt, start_time, _c.PTRN_TYPE.CASH_IN)
-                add_to_dict_of_list(self.transactions, start_time, transaction)
+                time = start_time - random.randint(0, _v.SIM.DEF_DELAY)
+                transaction = (None, node_id, amt, time, _c.PTRN_TYPE.CASH_IN)
+                add_to_dict_of_list(self.transactions, time, transaction)
 
         # Schedule cashes out for destinations
+        end_time = start_time + self.period
         for node_id, n_attr in self.structure.nodes(data=True):
             if n_attr['role'] != 'd':
                 continue
@@ -124,8 +126,9 @@ class Pattern:
             amounts = [single_amount] * num_cashes
             amounts.append(remaining)
             for amt in amounts:
-                transaction = (None, node_id, amt, start_time, _c.PTRN_TYPE.CASH_IN)
-                add_to_dict_of_list(self.transactions, start_time, transaction)
+                time = end_time + random.randint(0, _v.SIM.DEF_DELAY)
+                transaction = (None, node_id, amt, time, _c.PTRN_TYPE.CASH_IN)
+                add_to_dict_of_list(self.transactions, time, transaction)
 
     # REQUIREMENTS
     # ------------------------------------------
@@ -216,7 +219,7 @@ class Pattern:
     def schedule(self, start_time: int) -> None:
         self._schedule(start_time)
         if self.is_aml and self.schedule_cashes:
-            self._schedule_cashes(start_time)
+            self._schedule_entrance(start_time)
 
     def create_structure(self: int) -> None:
         raise NotImplementedError

@@ -11,10 +11,11 @@ import src._variables as _v
 
 from src.model.entities import Bank, Account
 from src.model.community import Community
-from src.utils import add_to_dict_of_list, time_limit, TimeoutException
+from src.utils import add_to_dict_of_list
 
 
 from datetime import datetime
+
 
 class Population:
     def __init__(self):
@@ -113,12 +114,7 @@ class Population:
 
             return sched_balance_condition and role_condition
 
-        try:
-            with time_limit(30):
-                gm = networkx.algorithms.isomorphism.DiGraphMatcher(community_subgraph, pattern_graph, node_match=attribute_match_function)
-        except TimeoutException as e:
-            logging.info("Timeout in the query_accounts_with_relations for pattern " + str(pattern_type))
-            return {}
+        gm = networkx.algorithms.isomorphism.DiGraphMatcher(community_subgraph, pattern_graph, node_match=attribute_match_function)
 
         # If there's no match, the function return an empty mapping
         if not gm.subgraph_is_isomorphic():
@@ -345,6 +341,22 @@ class Population:
 
         return True
 
+    def perform_fraudolent_cash_in_tx(self, account_id: int, amount: float) -> bool:
+        assert amount > 0
+
+        if random.random() > _v.SIM.DEF_FRAUD_RATIO:
+            self.perform_cash_in_tx(account_id, amount)
+            return False
+
+        compromised = list(self.get_compromised(1))[0]
+
+        outcome = self.send_transaction(account_id, compromised, amount, _c.PTRN_TYPE.FRAUD, False)
+        if not outcome:
+            self.perform_cash_in_tx(account_id, amount)
+            return False
+
+        return True
+
     def perform_cash_out_tx(self, account_id: int, amount: float) -> bool:
         assert amount > 0
         account = self.__accounts[account_id]
@@ -358,7 +370,8 @@ class Population:
 
         return outcome
 
-    def send_transaction(self, originator_id: int, beneficiary_id: int, amount: float, pattern: int) -> bool:
+    def send_transaction(self, originator_id: int, beneficiary_id: int, amount: float, pattern: int,
+                         add_connection: bool) -> bool:
         assert amount > 0
         originator = self.__accounts[originator_id]
         beneficiary = self.__accounts[beneficiary_id]
@@ -381,6 +394,9 @@ class Population:
                 beneficiary.update_available_balance(amount)
                 self.__accounts_dataframe.at[beneficiary_id, _c.ACCTS_DF_ATTR.S_SCHED_BALANCE] += amount
 
+            if add_connection and (random.random() < originator.new_neighbour_ratio):
+                self.community.add_link(originator_id, beneficiary_id)
+
         # If transaction is refused AND the pattern is not random, the users must regain the spent available balance
         elif pattern != _c.PTRN_TYPE.RANDOM:
             originator.update_available_balance(amount)
@@ -395,6 +411,7 @@ class Population:
         # Get compromised accounts based on compromised probability
         compromised = np.random.choice(len(self.__accounts), size=num_compromised, replace=False,
                                        p=self.__accounts_dataframe[_c.ACCTS_DF_ATTR.S_COMPROM_RATIO])
+
         # Check whether some chosen account has already been compromised in the past...
         already_compromised = [acc in compromised for acc in self.__compromised]
         # ...if so add those accounts to a 'to remove' list...
@@ -413,3 +430,4 @@ class Population:
         self.__compromised = set.union(self.__compromised, set(compromised))
 
         return compromised
+

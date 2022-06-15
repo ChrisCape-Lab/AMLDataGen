@@ -57,6 +57,7 @@ class COMM_TYPE:
 
 class PTRN_TYPE:
     # Transaction particular Patterns
+    FRAUD = -2
     RANDOM = -1
     FAN_IN = 0
     FAN_OUT = 1
@@ -87,6 +88,7 @@ class SCHEDULING:
     INSTANT = 0
     PERIODIC = 1
     RANDOM = 2
+
 
 
 

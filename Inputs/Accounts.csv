@@ -1,5 +1,0 @@
-count,balance_min,balance_max,balance_limit_percentage,business,behaviours,bank_id,avg_tx_per_step,min_tx_amount,max_tx_amount,compromising_ratio
-1000,2000,4000,0.1,Retail,all,rnd,0.8,100,300,0.1
-1000,5000,8000,0.15,Corporate,0_1_2_3_4,rnd,1,250,10000.1
-1000,3000,6000,0.1,Retail,all,rnd,0.8,150,400
-1000,10000,20000,0.2,Corporate,all,rnd,1,500,1500,0.1

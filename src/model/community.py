@@ -10,6 +10,23 @@ import src._variables as _v
 
 
 class CommunityNode:
+    """
+    CommunityNode is a class that represent a node with some attributes in the community.
+    In this context can be considered as an abstraction of an account which has only the attributes needed by the
+    community graph, in order to perform search or matching
+
+    # Properties
+        id: int, just a unique identifier
+        sched_balance: float, is the balance of the account without the scheduled-but-not-done transactions amounts
+        patterns: list(int), is the list of patterns that the account can perform
+        type: int, the type of the node
+        avg_fan_out: float, is the average amount of transactions the ndoe can perform per time instant
+        avg_fan_in: float, not used
+
+    # Methods
+        attributes_to_dict: return some properties of the node as dictionary. Useful for nx.graph creation
+
+    """
     def __init__(self, node_id, sched_balance, patterns_list, node_type, avg_fan_out, avg_fan_in):
         self.id = node_id
         self.sched_balance = sched_balance
@@ -18,11 +35,19 @@ class CommunityNode:
         self.avg_fan_out = avg_fan_out
         self.avg_fan_in = avg_fan_in
 
-    def attributes_to_dict(self):
+    def attributes_to_dict(self) -> dict:
+        """
+        Return the graph-related properties (sched_balance, patterns and type) as a dictionary
+        :return: dict(), the graph-related properties (sched_balance, patterns and type) of the CommunityNode
+        """
         return {_c.ACCTS_DF_ATTR.S_SCHED_BALANCE: self.sched_balance, 'patterns': self.patterns, 'type': self.type}
 
 
 class Community:
+    """
+    Community is a class which can represent the connections among users. This is basically a nx.graph holder in which
+    a node is an account and a link is a relation between two accounts. The concept of relation is "the accounts can
+    """
     def __init__(self):
         self.connection_graph = nx.DiGraph()
         self.communities = list()
@@ -33,6 +58,10 @@ class Community:
     # ------------------------------------------
 
     def get_nodes_ids(self):
+        """
+
+        :return:
+        """
         nodes_ids = list()
         for _, node in self.nodes.items():
             nodes_ids.append(node.id)

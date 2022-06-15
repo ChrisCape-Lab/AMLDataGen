@@ -1,8 +1,8 @@
+import os
+import pandas as pd
 import logging
 import random
 import yaml
-
-import pandas as pd
 
 import src._constants as _c
 import src._variables as _v
@@ -10,6 +10,35 @@ from src.model.population import Population, Account, Bank
 from src.model.datawriter import DataWriter
 from src.model.simulation import Simulation
 from src.model.pattern import create_pattern
+
+
+SINGLE = 0
+SERIES = 1
+
+
+# RUN
+# ------------------------------------------
+
+def run(config_file_name):
+    with open(config_file_name, "r") as rf:
+        try:
+            config = yaml.safe_load(rf)
+            sim_name = config['Simulation_name']
+        except yaml.YAMLError as exc:
+            print(exc)
+            exit()
+
+    _v.load_variables(config['configuration_parameters'])
+
+    logging_path = '../Logs/' + sim_name + '.log'
+    logging.basicConfig(filename=logging_path, filemode='w', format='[%(levelname)s] %(message)s', level=logging.INFO)
+
+    aml_data_gen = AMLDataGen(conf_file)
+    aml_data_gen.load_all()
+
+    aml_data_gen.create_simulation()
+
+    aml_data_gen.run_simulation()
 
 
 # UTILS
@@ -23,28 +52,32 @@ def scheduling_string_to_const(scheduling_str: str) -> int:
     elif scheduling_str == 'Instant':
         return _c.SCHEDULING.INSTANT
     else:
+        exception_string = "The scheduling '" + scheduling_str + "' is not implemented, sorry!"
         raise NotImplementedError
 
 
 def pattern_string_to_const(pattern_str: str) -> int:
-    if pattern_str == 'Random':
+    if pattern_str.lower() == 'random':
         return _c.PTRN_TYPE.RANDOM_P
-    elif pattern_str == 'Fan_in':
+    elif pattern_str.lower() == 'fan_in':
         return _c.PTRN_TYPE.FAN_IN
-    elif pattern_str == 'Fan_out':
+    elif pattern_str.lower() == 'fan_out':
         return _c.PTRN_TYPE.FAN_OUT
-    elif pattern_str == 'Cycle':
+    elif pattern_str.lower() == 'cycle':
         return _c.PTRN_TYPE.CYCLE
-    elif pattern_str == 'Scatter-Gather':
+    elif pattern_str.lower() == 'scatter_gather':
         return _c.PTRN_TYPE.SCATTER_GATHER
-    elif pattern_str == 'Gather-Scatter':
+    elif pattern_str.lower() == 'gather_scatter':
         return _c.PTRN_TYPE.GATHER_SCATTER
-    elif pattern_str == 'U_Pattern':
+    elif pattern_str.lower() == 'u_pattern':
         return _c.PTRN_TYPE.U
-    elif pattern_str == 'Repeated':
+    elif pattern_str.lower() == 'repeated':
         return _c.PTRN_TYPE.REPEATED
-    elif pattern_str == 'Bipartite':
+    elif pattern_str.lower() == 'bipartite':
         return _c.PTRN_TYPE.BIPARTITE
+    else:
+        exception_string = "The pattern '" + pattern_str + "' is not implemented, sorry!"
+        raise NotImplementedError(exception_string)
 
 
 # AMLDATAGEN CLASS
@@ -124,7 +157,7 @@ class AMLDataGen:
                 avg_tx_per_step = row['avg_tx_per_step']
                 min_amount = random.gauss(row['min_tx_amount'], row['min_tx_amount']/6)
                 max_amount = random.gauss(row['max_tx_amount'], row['max_tx_amount']/6)
-                compromising_ratio = random.uniform(row['compromising_ratio']-0.1, row['compromising_ratio']+0.1)
+                compromising_ratio = random.uniform(row['compromising_ratio']-0.05, row['compromising_ratio']+0.05)
                 role = _c.ACCTS_ROLES.NORMAL
 
                 assert balance > 0 and min_amount > 0 and max_amount > 0
@@ -197,7 +230,7 @@ class AMLDataGen:
         logging.info(out)
 
     def run_simulation(self):
-        out = "Sim: Starting simulation"
+        out = "sim: Starting simulation"
         print(out)
         logging.info(out)
         self.__simulation.setup(_v.SIM.DEF_ALLOW_RANDOM_TXS)
@@ -208,23 +241,16 @@ class AMLDataGen:
 
 
 if __name__ == "__main__":
-    conf_file = "../Inputs/_config.yaml"
-    with open(conf_file, "r") as rf:
-        try:
-            config = yaml.safe_load(rf)
-            sim_name = config['Simulation_name']
-        except yaml.YAMLError as exc:
-            print(exc)
-            exit()
-    logging_path = '../Logs/' + sim_name + '.log'
-    logging.basicConfig(filename=logging_path, filemode='w', format='[%(levelname)s] %(message)s', level=logging.INFO)
+    input_directory = "../Inputs/"
+    conf_file = input_directory + "_config.yaml"
 
-    aml_data_gen = AMLDataGen(conf_file)
-    aml_data_gen.load_all()
-
-    aml_data_gen.create_simulation()
-
-    aml_data_gen.run_simulation()
-
-
-
+    mode = SERIES
+    if mode == SINGLE:
+        run(conf_file)
+    elif mode == SERIES:
+        for experiment in os.listdir(input_directory):
+            experiment_dir = os.path.join(input_directory, experiment)
+            if os.path.isfile(experiment_dir) or experiment == "_Sim_test":
+                continue
+            conf_file = input_directory + str(experiment) + "/_config.yaml"
+            run(conf_file)

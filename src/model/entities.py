@@ -94,7 +94,7 @@ class Account:
     # ------------------------------------------
     @staticmethod
     def get_number_of_cash_tx() -> int:
-        return random.randint(_v.ACCOUNT.DEF_CASH_TX_MIN, _v.ACCOUNT.DEF_CASH_TX_MAX)
+        return random.randint(_v.ACCOUNT.DEF_RND_CASH_TXS_MIN, _v.ACCOUNT.DEF_RND_CASH_TXS_MAX)
 
     def get_cash_in_amount(self) -> float:
         return round(random.uniform(self.min_amount, self.max_amount), 2)

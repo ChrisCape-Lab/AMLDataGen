@@ -1,0 +1,190 @@
+
+# Name of the simulation
+Simulation_name: "Sim_Gather_Scatter_100K"
+
+
+# Parameters for the input files of the simulator
+Input_files:
+
+  # Name of the file containing the banks list
+  bank_file: "Banks.csv"
+
+  # Folder in which are located the file to load
+  input_folder: "Inputs/Sim_Gather_Scatter_100K"
+
+  # Name of the file containing the accounts list
+  account_file: "Accounts.csv"
+
+  # Type of account inserted in the account_file. Available: 'grouped' or 'raw' (default: 'grouped')
+  account_file_type: 'grouped'
+
+  # Name of the file containing the community connection list. Used only if community_type is set on 'from_file'
+  community_file: "Community.csv"
+
+  # Name of the file containing the normal patterns
+  normal_pattern_file: "Normal_Patterns.csv"
+
+  # Name of the file containing the money laundering patterns
+  ml_pattern_file: "ML_Patterns.csv"
+
+
+# Parameters for the output files of the simulator
+Output_files:
+
+  # Name of the folder which will contain the output files
+  output_folder: "Outputs/"
+
+  # Name of the file containing the accounts output
+  account_file: "Accounts.csv"
+
+  # Name of the file containing the transaction output
+  transaction_file: "Transactions.csv"
+
+  # Name of the file containing the normal patterns output
+  normal_patterns_file: "Normal_Patterns.csv"
+
+  # Name of the file containing the mony laundering patterns
+  ml_patterns_file: "ML_Patterns.csv"
+
+
+# Parameters for the configuration of the simulator
+configuration_parameters:
+
+  # ===== SIMULATION PARAMETERS =====
+
+  # End time of the simulation (default: 104)
+  end_time: 156
+
+  # Creation mode for the launderers. Available: 'none', 'simple' or 'structured' (default: 'simple')
+  launderers_creation_mode: 'structured'
+
+  # Choose wether to allow the automatical random tx among users (Can also be defined in pattern files) (default: True)
+  allow_random_txs: True
+
+  # Choose wether to schedule cash in/out together with ML patterns (Default: True)
+  schedule_cashes_with_ML_patterns: True
+
+  # Delay in pattern scheduling to allow to schedule cash in/out transactions (default: 1)
+  scheduling_delay: 1
+
+  # ===== ACCOUNTS PARAMETERS =====
+
+  # Variance for the balance limit of users, used to decide wether to schedule a cash in/out based on high/low balance (default: 0.05)
+  balance_limit_variance: 0.05
+
+  # Variance for the average tranasction per time of users, used to introduce variability (default: 0.5)
+  avg_tx_per_time_variance: 0.5
+
+  # Probability of random cash-in to happen (default: 0.75)
+  cash_in_probability: 0.75
+
+  # Probability of random cash-out to happen (default: 0.75)
+  cash_out_probability: 0.75
+
+  # Minimum number of cash-in/out transaction performed by a single user randomly (default: 1)
+  random_cash_txs_min: 1
+
+  # Minimum number of cash-in/out transaction performed by a single user randomly (default: 3)
+  random_cash_txs_max: 3
+
+  # New beneficiary ratio for default accounts (default: 0.1)
+  default_new_beneficiary_ratio: 0.1
+
+  # New beneficiary ratio for retail accounts (default: 0.1)
+  retail_new_beneficiary_ratio: 0.1
+
+  # New beneficiary ratio for corporate accounts (default: 0.05)
+  corporate_new_beneficiary_ratio: 0.05
+
+  # New neighbour ratio for default accounts (default: 0.5)
+  default_new_neighbour_ratio: 0.5
+
+  # New neighbour ratio for retail accounts (default: 0.5)
+  retail_new_neighbour_ratio: 0.5
+
+  # New neighbour ratio for corporate accounts (default: 0.4)
+  corporate_new_neighbour_ratio: 0.4
+
+  # ===== POPULATION PARAMETERS =====
+
+  # Ratio of money launderer among the population (default: 0.05)
+  ML_launderers_ratio: 0.05
+
+  # Ratio of money laundering sources among launderers (default: 0.25)
+  ML_sources_percentage: 0.25
+
+  # Ratio of money laundering layerer among launderers (default: 0.5)
+  ML_layerer_percentage: 0.5
+
+  # Ratio of money laundering destinations among launderers (default: 0.25)
+  ML_destinations_percentage: 0.25
+
+  # Quantile for limiting the balance of money launderers (default: 0.8)
+  ML_limiting_quantile: 0.8
+
+  # ===== COMMUNITY PARAMETERS =====
+
+  # Type of the community. Available: 'none', 'full_random', 'random', 'structured' or 'from_file' (default: 'full_random')
+  community_type: 'full_random'
+
+  # Densitiy for the full_random community connections (default: 0.3)
+  random_community_density: 0.3
+
+  # Minimum number of accounts known by an account (default: 5)
+  min_known_nodes: 5
+
+  # Maximum number of accounts known by an account (default: 20)
+  max_known_nodes:  20
+
+  # [STRUCTURED] Minimum number of accounts in a community (default: 30)
+  min_community_size: 30
+
+  # [STRUCTURED] Maximum number of accounts in a community (default: 100)
+  max_community_size: 100
+
+  # ===== PATTERN PARAMETERS =====
+
+  # Minimum transactions in a repeated pattern (default: 4)
+  repeated_pttrn_min_txs: 4
+
+  # Maximum transactions in a repeated pattern (default: 8)
+  repeated_pttrn_max_txs: 8
+
+  # Minimum ratio of sources accounts in bipartite pattern (default: 0.2)
+  bipartite_pttrn_min_sources_ratio: 0.2
+
+  # Maximum ratio of sources accounts in bipartite pattern (default: 0.3)
+  bipartite_pttrn_max_sources_ratio: 0.3
+
+  # Minimum ratio of destinations accounts in bipartite pattern (default: 0.2)
+  bipartite_pttrn_min_dest_ratio: 0.2
+
+  # Maximum ratio of destinations accounts in bipartite pattern (default: 0.3)
+  bipartite_pttrn_max_dest_ratio: 0.3
+
+  # Minimum layers in bipartite pattern (default: 2)
+  bipartite_min_layers_num: 2
+
+  # Maximum layers in bipartite pattern (default: 6)
+  bipartite_max_layers_num: 6
+
+  # Edge density in the bipartite pattern (deafult: 0.8)
+  bipartite_edge_density: 0.8
+
+  # Minimum number of transaction in cash-in/out pattern (default: 3)
+  cash_num_min: 3
+
+  # Maximum number of transactions in cash-in/out pattern (default: 5)
+  cash_num_max: 5
+
+
+
+
+
+
+
+
+
+
+
+

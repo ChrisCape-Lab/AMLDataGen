@@ -5,11 +5,18 @@ are initially set from the config file
 import src._constants as _c
 
 
-class SIMULATION:
+# VARIABLES
+# ------------------------------------------
+
+class SIM:
     DEF_END_TIME = 54
     DEF_LAUNDERERS_CREATION_MODE = _c.POPULATION.LAUNDERER_CREATION_SIMPLE_MODE
     DEF_ALLOW_RANDOM_TXS = True
     DEF_SCHEDULE_CASHES_WITH_ML_PATTERNS = True
+
+    DEF_DELAY = 1
+
+    DEF_FRAUD_RATIO = 0.05
 
 
 class ACCOUNT:
@@ -29,15 +36,15 @@ class ACCOUNT:
     __DEF_NEW_BENE_RATIO = 0.1
     __DEF_RETAIL_NEW_BENE_RATIO = 0.1
     __DEF_CORPORATE_NEW_BENE_RATIO = 0.05
-    NEW_BENE_RATIOS = {None: __DEF_NEW_BENE_RATIO, _c.ACCOUNT.RETAIL: __DEF_RETAIL_NEW_BENE_RATIO,
-                       _c.ACCOUNT.CORPORATE: __DEF_CORPORATE_NEW_BENE_RATIO}
+    NEW_BENE_RATIOS = {None: __DEF_NEW_BENE_RATIO, _c.ACCTS_BUSINESS.RETAIL: __DEF_RETAIL_NEW_BENE_RATIO,
+                       _c.ACCTS_BUSINESS.CORPORATE: __DEF_CORPORATE_NEW_BENE_RATIO}
 
     # Default values for the new neighbour ratios
     __DEF_NEW_NEIGHBOUR_RATIO = 0.5
     __DEF_RETAIL_NEW_NEIGHBOUR_RATIO = 0.5
     __DEF_CORPORATE_NEW_NEIGHBOUR_RATIO = 0.4
-    NEW_NEIGHBOUR_RATIOS = {None: __DEF_NEW_NEIGHBOUR_RATIO, _c.ACCOUNT.RETAIL: __DEF_RETAIL_NEW_NEIGHBOUR_RATIO,
-                            _c.ACCOUNT.CORPORATE: __DEF_CORPORATE_NEW_NEIGHBOUR_RATIO}
+    NEW_NEIGHBOUR_RATIOS = {None: __DEF_NEW_NEIGHBOUR_RATIO, _c.ACCTS_BUSINESS.RETAIL: __DEF_RETAIL_NEW_NEIGHBOUR_RATIO,
+                            _c.ACCTS_BUSINESS.CORPORATE: __DEF_CORPORATE_NEW_NEIGHBOUR_RATIO}
 
 
 class POPULATION:
@@ -54,7 +61,7 @@ class POPULATION:
     DEF_ML_LIMITING_QUANTILE = 0.9
 
 
-class COMMUNITY:
+class COMM:
     DEF_RND_COMMUNITY_DENSITY = 0.3
 
     DEF_MIN_KNOWN_NODES = 5
@@ -63,7 +70,7 @@ class COMMUNITY:
     DEF_MIN_COMM_SIZE = 30
     DEF_MAX_COMM_SIZE = 100
 
-    DEF_COMMUNITY_TYPE = _c.COMMUNITY.FULL_RANDOM
+    DEF_COMMUNITY_TYPE = _c.COMM_TYPE.FULL_RANDOM
 
 
 class PATTERN:
@@ -80,6 +87,9 @@ class PATTERN:
     CASH_NUM_MAX = 5
 
 
+# UTILS
+# ------------------------------------------
+
 def __launderer_creation_to_constant(mode: str) -> int:
     if mode == 'simple':
         return _c.POPULATION.LAUNDERER_CREATION_SIMPLE_MODE
@@ -91,23 +101,27 @@ def __launderer_creation_to_constant(mode: str) -> int:
 
 def __community_to_constant(community: str) -> int:
     if community == 'full_random':
-        return _c.COMMUNITY.FULL_RANDOM
+        return _c.COMM_TYPE.FULL_RANDOM
     elif community == 'random':
-        return _c.COMMUNITY.RANDOM
+        return _c.COMM_TYPE.RANDOM
     elif community == 'structured':
-        return _c.COMMUNITY.STRUCTURED_RANDOM
+        return _c.COMM_TYPE.STRUCTURED_RANDOM
     elif community == 'from_file':
-        return _c.COMMUNITY.FROM_FILE
+        return _c.COMM_TYPE.FROM_FILE
     else:
         raise NotImplementedError
 
 
+# LOADER
+# ------------------------------------------
+
 def load_variables(variables: dict) -> None:
     # Simulation variables
-    SIMULATION.DEF_END_TIME = variables['end_time']
-    SIMULATION.DEF_LAUNDERERS_CREATION_MODE = __launderer_creation_to_constant(variables['launderers_creation_mode'])
-    SIMULATION.DEF_ALLOW_RANDOM_TXS = variables['allow_random_txs']
-    SIMULATION.DEF_SCHEDULE_CASHES_WITH_ML_PATTERNS = variables['schedule_cashes_with_ML_patterns']
+    SIM.DEF_END_TIME = variables['end_time']
+    SIM.DEF_LAUNDERERS_CREATION_MODE = __launderer_creation_to_constant(variables['launderers_creation_mode'])
+    SIM.DEF_ALLOW_RANDOM_TXS = variables['allow_random_txs']
+    SIM.DEF_SCHEDULE_CASHES_WITH_ML_PATTERNS = variables['schedule_cashes_with_ML_patterns']
+    SIM.DEF_DELAY = variables['scheduling_delay']
 
     # Account variables
     ACCOUNT.DEF_BALANCE_LIMIT_VARIANCE = variables['balance_limit_variance']
@@ -135,20 +149,20 @@ def load_variables(variables: dict) -> None:
     POPULATION.DEF_ML_LIMITING_QUANTILE = variables['ML_limiting_quantile']
 
     # Community variables
-    COMMUNITY.DEF_RND_COMMUNITY_DENSITY = variables['random_community_density']
-    COMMUNITY.DEF_MIN_KNOWN_NODES = variables['min_known_nodes']
-    COMMUNITY.DEF_MAX_KNOWN_NODES = variables['max_known_nodes']
-    COMMUNITY.DEF_MIN_COMM_SIZE = variables['min_community_size']
-    COMMUNITY.DEF_MAX_COMM_SIZE = variables['max_community_size']
-    COMMUNITY.DEF_COMMUNITY_TYPE = __community_to_constant(variables['community_type'])
+    COMM.DEF_RND_COMMUNITY_DENSITY = variables['random_community_density']
+    COMM.DEF_MIN_KNOWN_NODES = variables['min_known_nodes']
+    COMM.DEF_MAX_KNOWN_NODES = variables['max_known_nodes']
+    COMM.DEF_MIN_COMM_SIZE = variables['min_community_size']
+    COMM.DEF_MAX_COMM_SIZE = variables['max_community_size']
+    COMM.DEF_COMMUNITY_TYPE = __community_to_constant(variables['community_type'])
 
     # Pattern variables
-    PATTERN.REPEATED_MIN = variables['repeated_pttrn_min_requests']
-    PATTERN.REPEATED_MAX = variables['repeated_pttrn_max_requests']
-    PATTERN.BIPARTITE_MIN_SOURCES = variables['bipartite_pttrn_min_sources_percentage']
-    PATTERN.BIPARTITE_MAX_SOURCES = variables['bipartite_pttrn_min_sources_percentage']
-    PATTERN.BIPARTITE_MIN_DESTINATIONS = variables['bipartite_pttrn_min_dest_percentage']
-    PATTERN.BIPARTITE_MAX_DESTINATIONS = variables['bipartite_pttrn_max_dest_percentage']
+    PATTERN.REPEATED_MIN = variables['repeated_pttrn_min_txs']
+    PATTERN.REPEATED_MAX = variables['repeated_pttrn_max_txs']
+    PATTERN.BIPARTITE_MIN_SOURCES = variables['bipartite_pttrn_min_sources_ratio']
+    PATTERN.BIPARTITE_MAX_SOURCES = variables['bipartite_pttrn_max_sources_ratio']
+    PATTERN.BIPARTITE_MIN_DESTINATIONS = variables['bipartite_pttrn_min_dest_ratio']
+    PATTERN.BIPARTITE_MAX_DESTINATIONS = variables['bipartite_pttrn_max_dest_ratio']
     PATTERN.BIPARTITE_MIN_LAYERS_NUM = variables['bipartite_min_layers_num']
     PATTERN.BIPARTITE_MAX_LAYERS_NUM = variables['bipartite_max_layers_num']
     PATTERN.BIPARTITE_EDGE_DENSITY = variables['bipartite_edge_density']
