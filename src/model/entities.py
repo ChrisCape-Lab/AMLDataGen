@@ -42,7 +42,7 @@ class Account:
         # Nationality of the account owner [For now is unused, may be used for Money-Launderers creation or compromising ratio]
         self.nationality = None
         # The ID of user account's bank
-        self.bank_id = bank_id
+        self.bank_id = int(bank_id)
 
         #
         self.avg_tx_per_step = avg_tx_per_step
@@ -134,8 +134,8 @@ class Account:
     # MODIFIERS
     # ------------------------------------------
     def update_available_balance(self, amount):
-        assert self.available_balance + amount > 0, "Not enough balance: requested " + str(
-            -amount) + " but available " + str(self.available_balance)
+        #assert self.available_balance + amount > 0, "Not enough balance: requested " + str(
+        #    -amount) + " but available " + str(self.available_balance)
         self.available_balance += amount
 
     def update_balance(self, amount):

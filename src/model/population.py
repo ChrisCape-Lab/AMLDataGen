@@ -4,7 +4,6 @@ import networkx as nx
 import networkx.algorithms.isomorphism
 import numpy as np
 import pandas as pd
-import logging
 
 import src._constants as _c
 import src._variables as _v
@@ -168,7 +167,7 @@ class Population:
                 out_str = "Too restrictive requirements for pattern " + str(pattern) + " : "
                 for key in requirement.get_requirements_keys():
                     out_str += ", " + requirement.get_requirement_as_condition(key)
-                logging.warning(out_str)
+                _v.logger.warning(out_str)
             assert len(query_acct_df.index) > 0
 
             available = set(query_acct_df.index.tolist()) - set(black_list_extended)
@@ -271,17 +270,17 @@ class Population:
         num_accounts = len(self.__accounts)
         num_banks = len(self.__bank_to_acc)
         launderers_num = int(num_accounts * _v.POPULATION.DEF_ML_LAUNDERERS_RATIO)
-        banks_laundering_ratio = [bank.launderer_ratio for bank in self.__banks]
+        banks_laundering_ratio = [bank.launderer_ratio for _, bank in self.__banks.items()]
 
         # Each one is a list which contains, for each bank, the number of source/layer/dest nodes related to that bank
-        num_sources = launderers_num * _v.POPULATION.DEF_ML_SOURCES_PERCENTAGE
-        source_dist = banks_laundering_ratio * num_sources
+        num_sources = int(launderers_num * _v.POPULATION.DEF_ML_SOURCES_PERCENTAGE)
+        source_dist = [int(blr * num_sources) for blr in banks_laundering_ratio]
 
-        num_layerer = launderers_num * _v.POPULATION.DEF_ML_LAYERER_PERCENTAGE
-        layerer_dist = banks_laundering_ratio * num_layerer
+        num_layerer = int(launderers_num * _v.POPULATION.DEF_ML_LAYERER_PERCENTAGE)
+        layerer_dist = [int(blr * num_layerer) for blr in banks_laundering_ratio]
 
-        num_destinations = launderers_num * _v.POPULATION.DEF_ML_DESTINATIONS_PERCENTAGE
-        destination_dist = banks_laundering_ratio * num_destinations
+        num_destinations = int(launderers_num * _v.POPULATION.DEF_ML_DESTINATIONS_PERCENTAGE)
+        destination_dist = [int(blr * num_destinations) for blr in banks_laundering_ratio]
 
         # Create dataframe from accounts. It is done to speed up the computation
         acc_df = self.__accounts_dataframe
@@ -290,15 +289,15 @@ class Population:
         # distribution adn then removing the account with higher avg_fan_out. Launderers does not do many transactions in order to not be bothered
         if limiting_quantile > 0.0:
             quantile_df = acc_df[['avg_tx_per_step']]
-            tx_out_quant = np.quantile(quantile_df, limiting_quantile, axis=0)
+            tx_out_quant = np.quantile(quantile_df, limiting_quantile, axis=0)[0]
             acc_df = acc_df.drop(acc_df[acc_df['avg_tx_per_step'] >= tx_out_quant].index.tolist())
 
         # For each bank are extracted sources, layers and destinations
         for bank_id in range(0, num_banks):
-            bank_users_idxs = set(acc_df[acc_df[[5] == bank_id]][[0]])
+            bank_users_idxs = set(acc_df[acc_df[_c.ACCTS_DF_ATTR.S_BANK_ID] == float(bank_id)].index.tolist())
 
             # Set AMLSources for bank_i
-            source_ids = random.sample(bank_users_idxs, k=source_dist[bank_id])
+            source_ids = random.sample(list(bank_users_idxs), k=source_dist[bank_id])
             for i in source_ids:
                 self.__accounts[i].role = _c.ACCTS_ROLES.ML_SOURCE
                 self.__accounts_dataframe.at[i, _c.ACCTS_DF_ATTR.S_ROLE] = _c.ACCTS_ROLES.ML_SOURCE

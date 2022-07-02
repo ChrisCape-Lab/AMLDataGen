@@ -1,4 +1,6 @@
 import os
+import sys
+import shutil
 import pandas as pd
 import logging
 import random
@@ -23,15 +25,18 @@ def run(config_file_name):
     with open(config_file_name, "r") as rf:
         try:
             config = yaml.safe_load(rf)
+            out_path = "../" + config['Output_files']['output_folder'] + config['Simulation_name'] + '/'
             sim_name = config['Simulation_name']
         except yaml.YAMLError as exc:
             print(exc)
             exit()
 
+    print("Running " + sim_name)
     _v.load_variables(config['configuration_parameters'])
 
     logging_path = '../Logs/' + sim_name + '.log'
-    logging.basicConfig(filename=logging_path, filemode='w', format='[%(levelname)s] %(message)s', level=logging.INFO)
+    _v.logger = my_custom_logger(logging_path)
+    #logging.basicConfig(filename=logging_path, filemode='w', format='[%(levelname)s] %(message)s', level=logging.INFO)
 
     aml_data_gen = AMLDataGen(conf_file)
     aml_data_gen.load_all()
@@ -39,10 +44,30 @@ def run(config_file_name):
     aml_data_gen.create_simulation()
 
     aml_data_gen.run_simulation()
+    del aml_data_gen
+
+    shutil.copy(logging_path, out_path)
 
 
 # UTILS
 # ------------------------------------------
+
+
+def my_custom_logger(log_file_path, level=logging.DEBUG):
+    """
+    Method to return a custom logger with the given name and level
+    """
+    logger = logging.getLogger(log_file_path)
+    logger.setLevel(level)
+    log_format = logging.Formatter('[%(levelname)s] %(message)s')
+
+    # Creating and adding the file handler
+    file_handler = logging.FileHandler(log_file_path, mode='a')
+    file_handler.setFormatter(log_format)
+    logger.addHandler(file_handler)
+
+    return logger
+
 
 def scheduling_string_to_const(scheduling_str: str) -> int:
     if scheduling_str == 'Random':
@@ -110,10 +135,11 @@ class AMLDataGen:
         folder = output_files['output_folder'] + self.config['Simulation_name'] + '/'
         accounts_out_file = output_files['account_file']
         transaction_out_file = output_files['transaction_file']
+        degree_out_file = output_files['degree_file']
         normal_patterns_file = output_files['normal_patterns_file']
         ml_patterns_file = output_files['ml_patterns_file']
 
-        self.data_writer = DataWriter(folder, accounts_out_file, transaction_out_file, normal_patterns_file,
+        self.data_writer = DataWriter(folder, accounts_out_file, transaction_out_file, degree_out_file, normal_patterns_file,
                                       ml_patterns_file)
 
     # LOADERS
@@ -141,7 +167,7 @@ class AMLDataGen:
         for _, row in bank_df.iterrows():
             self.population.add_bank(Bank(bank_id, row['bank_name'], row['compromising_ratio'], row['launderer_ratio']))
             bank_id += 1
-        print("Init: Banks loaded correctly")
+        print("Init: banks loaded correctly")
 
     def load_accounts(self, accounts_file):
         acc_df = pd.read_csv(accounts_file)
@@ -168,7 +194,7 @@ class AMLDataGen:
                 acct_id += 1
         out = "Init: accounts loaded correctly"
         print(out)
-        logging.info(out)
+        _v.logger.info(out)
 
     def load_normal_patterns(self, normal_patterns_file):
         normal_patterns_df = pd.read_csv(normal_patterns_file)
@@ -192,7 +218,7 @@ class AMLDataGen:
                 normal_patterns_id += 1
         out = "Init: normal patterns loaded correctly"
         print(out)
-        logging.info(out)
+        _v.logger.info(out)
 
     def load_ml_patterns(self, aml_patterns_file):
         ml_patterns_df = pd.read_csv(aml_patterns_file)
@@ -216,7 +242,7 @@ class AMLDataGen:
                 ml_patterns_id += 1
         out = "Init: laundering patterns loaded correctly"
         print(out)
-        logging.info(out)
+        _v.logger.info(out)
 
     # SIMULATION
     # ------------------------------------------
@@ -225,14 +251,14 @@ class AMLDataGen:
         self.__simulation = Simulation(self.population, self.data_writer, start_time=0, end_time=self.end_time)
         self.__simulation.load_normal_patterns(self.normal_patterns)
         self.__simulation.load_ml_patterns(self.ml_patterns)
-        out = "Sim: simulation created correctly"
+        out = "Init: simulation created correctly"
         print(out)
-        logging.info(out)
+        _v.logger.info(out)
 
     def run_simulation(self):
         out = "sim: Starting simulation"
         print(out)
-        logging.info(out)
+        _v.logger.info(out)
         self.__simulation.setup(_v.SIM.DEF_ALLOW_RANDOM_TXS)
         self.__simulation.run()
 
@@ -242,7 +268,7 @@ class AMLDataGen:
 
 if __name__ == "__main__":
     input_directory = "../Inputs/"
-    conf_file = input_directory + "_config.yaml"
+    conf_file = input_directory + "_Sim_test/_config.yaml"
 
     mode = SERIES
     if mode == SINGLE:
@@ -250,7 +276,7 @@ if __name__ == "__main__":
     elif mode == SERIES:
         for experiment in os.listdir(input_directory):
             experiment_dir = os.path.join(input_directory, experiment)
-            if os.path.isfile(experiment_dir) or experiment == "_Sim_test":
+            if os.path.isfile(experiment_dir) or experiment == "_Sim_test" or experiment == "_Other_sims" or experiment == '_tests' or experiment == 'tmp':
                 continue
             conf_file = input_directory + str(experiment) + "/_config.yaml"
             run(conf_file)

@@ -10,6 +10,8 @@ NORMAL_AMT = 0
 ROUNDED = 1
 UNDER_THRESH = 2
 
+CONFIDENCE = 1.1
+
 
 def get_rounded(value):
     if value > 0:
@@ -56,6 +58,20 @@ class Pattern:
 
     def schedule_caches(self, schedule_caches: bool) -> None:
         self.schedule_cashes = schedule_caches
+
+    def delete(self):
+        del self.id
+        del self.pattern_type
+        del self.num_accounts
+
+        del self.scheduling_type
+        del self.period
+        del self.amount
+        del self.rounded_ratio
+        del self.under_threshold_ratio
+        del self.transactions
+        del self.schedule_cashes
+        del self.is_aml
 
     # PRIVATE
     # ------------------------------------------
@@ -163,7 +179,7 @@ class Pattern:
             if not self.schedule_cashes:
                 for _, e_attr in self.structure[node_id].items():
                     amount += e_attr['weight']
-            requirement.add_requirement(_c.ACCTS_DF_ATTR.S_SCHED_BALANCE, ">", amount)
+            requirement.add_requirement(_c.ACCTS_DF_ATTR.S_SCHED_BALANCE, ">", amount*CONFIDENCE)
 
             requirements.append(requirement)
 
@@ -187,7 +203,7 @@ class Pattern:
                 amount += e_attr['weight']
             for pre_id in self.structure.predecessors(node_id):
                 amount -= self.structure[pre_id][node_id]['weight']
-            requirement.add_requirement(_c.ACCTS_DF_ATTR.S_SCHED_BALANCE, ">", amount)
+            requirement.add_requirement(_c.ACCTS_DF_ATTR.S_SCHED_BALANCE, ">", amount*CONFIDENCE)
 
             requirements.append(requirement)
 
@@ -207,7 +223,7 @@ class Pattern:
             amount = 0
             for pre_id in self.structure.predecessors(node_id):
                 amount -= self.structure[pre_id][node_id]['weight']
-            requirement.add_requirement(_c.ACCTS_DF_ATTR.S_SCHED_BALANCE, ">", amount)
+            requirement.add_requirement(_c.ACCTS_DF_ATTR.S_SCHED_BALANCE, ">", amount*CONFIDENCE)
 
             requirements.append(requirement)
 
@@ -220,6 +236,8 @@ class Pattern:
         self._schedule(start_time)
         if self.is_aml and self.schedule_cashes:
             self._schedule_entrance(start_time)
+        del self.structure
+        del self.accounts_map
 
     def create_structure(self: int) -> None:
         raise NotImplementedError

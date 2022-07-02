@@ -1,7 +1,26 @@
+from threading import Thread
+
 import pandas as pd
+from multiprocessing import Process, Manager
+from time import sleep
 
 from itertools import islice
 from random import randint
+
+
+class ThreadWithReturnValue(Thread):
+    def __int__(self, group=None, target=None, name=None, args=(), kwargs=(), Verbose=None):
+        Thread.__init__(group, target, name, args, kwargs, Verbose)
+        self._return = None
+
+        def run(self) -> None:
+            print(type(self._target))
+            if self._target is not None:
+                self._return = self._target(*self._args, **self._kwargs)
+
+        def join(self, *args):
+            Thread.join(self, *args)
+            return self._return
 
 
 class NodeRequirements:
@@ -12,11 +31,11 @@ class NodeRequirements:
     def get_node_id_to_map(self):
         return self.__node_id_to_map
 
-    def get_requirement_value(self, key: str) -> int:
+    def get_requirement_value(self, key: str):
         _, value = self.__node_requirements[key]
         return value
 
-    def get_requirement_as_condition(self, key: str) -> (str, int):
+    def get_requirement_as_condition(self, key: str) -> (str, ):
         sign, value = self.__node_requirements[key]
         requirement = key + " " + sign + " " + str(value)
         return requirement
@@ -24,7 +43,7 @@ class NodeRequirements:
     def get_requirements_keys(self):
         return self.__node_requirements.keys()
 
-    def add_requirement(self, key: str, sign: str, value: int) -> None:
+    def add_requirement(self, key: str, sign: str, value) -> None:
         self.__node_requirements[key] = (sign, value)
 
 
@@ -57,6 +76,22 @@ def integer_amount_partition(amount: float, number_batch: int):
     r = round(amount - q * number_batch, 2)
 
     return q, r
+
+
+def run_with_limited_time(function, args, time):
+
+    def return_handler_function(function, args, return_value):
+        return_value.append(function(args))
+
+    ret_value = Manager().list()
+    p = Process(target=return_handler_function, args=(function, args, ret_value))
+    p.start()
+    p.join(time)
+    if p.is_alive():
+        p.terminate()
+        return None
+
+    return list(ret_value)
 
 
 # LOADING UTILS

@@ -1,11 +1,12 @@
-import logging
 import random
 from datetime import datetime
+
+import pandas as pd
 
 from src.model.population import Population
 from src.model.datawriter import DataWriter
 from src.model.pattern import Pattern
-from src.utils import add_to_dict_of_list
+from src.utils import add_to_dict_of_list, run_with_limited_time, ThreadWithReturnValue
 
 import src._constants as _c
 import src._variables as _v
@@ -77,8 +78,12 @@ class Simulation:
         self.population.create_launderers(_v.SIM.DEF_LAUNDERERS_CREATION_MODE)
         self.population.create_community(community_type=_v.COMM.DEF_COMMUNITY_TYPE)
         self.population.update_accounts_connections()
+
         accounts_list = [self.population.get_account(acct_id) for acct_id in self.population.get_accounts_ids()]
         self.datawriter.write_accounts_info(accounts_list)
+        self.datawriter.write_degrees(self.population.community.get_degrees_count())
+
+        print("Sim: End initialization phase")
 
     def run(self) -> None:
         for t in range(self.start_time, self.end_time):
@@ -95,7 +100,7 @@ class Simulation:
 
         out = "  - [" + str(datetime.now().replace(microsecond=0)-start) + "] Step " + str(self.time + 1) + "/" + str(self.end_time) + ": Done"
         print(out)
-        logging.info(out)
+        _v.logger.info(out)
         self.time += 1
 
     # HELPER (Private)
@@ -131,13 +136,21 @@ class Simulation:
         def schedule_pattern(pattern: Pattern, is_normal: bool) -> None:
             pattern_type = pattern.pattern_type
 
+            """
             # If the pattern is not related to ML, then a relation search is done in order to respect accounts connections
             if not pattern.is_aml:
-                node_map = self.population.query_accounts_with_relations(pattern_graph=pattern.get_pattern_graph_for_isomorphism(),
-                                                                     pattern_type=pattern_type, is_aml=pattern.is_aml)
-                if node_map:
+                thread = ThreadWithReturnValue(
+                    target=self.population.query_accounts_with_relations,
+                    args=(pattern.get_pattern_graph_for_isomorphism(), pattern_type, pattern.is_aml)
+                )
+                thread.start()
+                thread.join(30)
+                print(node_map)
+                if node_map is not None:
+                    logging.warning("Graph matching not performed")
                     pattern.add_node_mapping(node_map)
                     return
+            """
 
             # If the pattern is AML or the previous search does not produce anything good, then a non-relation search is performed
             # Get the available sources from the dataframe
@@ -183,6 +196,13 @@ class Simulation:
         :return: -
         """
         for pattern in self.scheduled_patterns:
+            # If all transactions have been scheduled, remove the pattern
+            if max(pattern.transactions.keys()) < time:
+                self.scheduled_patterns.remove(pattern)
+                pattern.delete()
+                del pattern
+                continue
+
             txs_to_schedule = pattern.schedule_txs(time)
 
             if txs_to_schedule is None:
@@ -234,7 +254,7 @@ class Simulation:
         """
         assert amt >= 0, "Inserted amount of " + str(amt) + " negative"
         if amt == 0:
-            logging.warning(
+            _v.logger.warning(
                 "Skipped cash-out on user " + str(src) + " due to low balance")
             return
 
@@ -258,14 +278,14 @@ class Simulation:
             self.transaction_list.append(transaction)
             self.tx_id += 1
         else:
-            if tx_type in [_c.PTRN_TYPE.CYCLE, _c.PTRN_TYPE.U, _c.PTRN_TYPE.SCATTER_GATHER]:
-                logging.critical("Missed transaction on user " + str(src) + " : amount = " + str(amt)
+            if tx_type in [_c.PTRN_TYPE.CYCLE, _c.PTRN_TYPE.U, _c.PTRN_TYPE.SCATTER_GATHER] and is_aml:
+                _v.logger.critical("Missed transaction on user " + str(src) + " : amount = " + str(amt)
                                  + " on pattern " + str(tx_type))
-            elif tx_type == _c.PTRN_TYPE.BIPARTITE:
-                logging.error("Missed transaction on user " + str(src) + " :  amount = " + str(amt) + " on pattern "
+            elif (tx_type in [_c.PTRN_TYPE.CYCLE, _c.PTRN_TYPE.U, _c.PTRN_TYPE.SCATTER_GATHER] and not is_aml) or tx_type == _c.PTRN_TYPE.BIPARTITE:
+                _v.logger.error("Missed transaction on user " + str(src) + " :  amount = " + str(amt) + " on pattern "
                               + str(tx_type))
             else:
-                logging.warning("Missed transaction on user " + str(src) + " : amount = " + str(amt)
+                _v.logger.warning("Missed transaction on user " + str(src) + " : amount = " + str(amt)
                                 + " on pattern " + str(tx_type))
 
     def __check_flush_tx_to_file(self):
@@ -273,9 +293,11 @@ class Simulation:
         Check wether to flush the transactions to file
         :return: -
         """
-        if len(self.transaction_list) >= 10000:
+        if len(self.transaction_list) >= 1000:
             self.datawriter.write_transactions(self.transaction_list)
-            self.transaction_list.clear()
+            del self.transaction_list
+            self.transaction_list = list()
+
 
 
 

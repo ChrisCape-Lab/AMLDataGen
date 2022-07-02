@@ -8,6 +8,8 @@ import src._constants as _c
 # VARIABLES
 # ------------------------------------------
 
+logger = None
+
 class SIM:
     DEF_END_TIME = 54
     DEF_LAUNDERERS_CREATION_MODE = _c.POPULATION.LAUNDERER_CREATION_SIMPLE_MODE

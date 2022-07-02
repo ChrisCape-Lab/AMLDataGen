@@ -1,4 +1,5 @@
 import random
+import pandas as pd
 import networkx as nx
 import logging
 
@@ -109,6 +110,17 @@ class Community:
 
         return fan_out_list
 
+    def get_degrees_count(self):
+        comm_df = pd.DataFrame(columns=['In-degree', 'Out-degree'])
+        for _, node in self.nodes.items():
+            in_deg = len(self.get_sources_for(node.id))
+            out_deg = len(self.get_destinations_for(node.id))
+            comm_df.loc[len(comm_df.index)] = [in_deg, out_deg]
+        comm_df = comm_df.groupby(['In-degree', 'Out-degree']).size().to_frame('Count').reset_index()
+        comm_df = comm_df[['Count', 'In-degree', 'Out-degree']]
+
+        return comm_df.values.tolist()
+
     # SETTERS
     # ------------------------------------------
 
@@ -165,13 +177,16 @@ class Community:
 
         self.connection_graph.add_nodes_from(self.get_nodes_ids())
 
-        for node in self.nodes:
-            initial_known_nodes_num = max(random.sample(range(_v.COMM.DEF_MIN_KNOWN_NODES, _v.COMM.DEF_MAX_KNOWN_NODES),
-                                                        k=node.avg_fan_out))
-            known_nodes = random.sample(self.nodes, k=initial_known_nodes_num)
+        for _, node in self.nodes.items():
+            mu = int((_v.COMM.DEF_MIN_KNOWN_NODES + _v.COMM.DEF_MAX_KNOWN_NODES)/2)
+            sigma = (_v.COMM.DEF_MAX_KNOWN_NODES - mu) / 3
+            initial_known_nodes_num = min(max(int(random.gauss(mu, sigma)), _v.COMM.DEF_MIN_KNOWN_NODES), _v.COMM.DEF_MAX_KNOWN_NODES)
+            #initial_known_nodes_num = max(random.sample(range(_v.COMM.DEF_MIN_KNOWN_NODES, _v.COMM.DEF_MAX_KNOWN_NODES),
+            #                                            k=int(max(node.avg_fan_out, 1))))
+            known_nodes = random.sample(self.nodes.keys(), k=initial_known_nodes_num)
 
             for known_node in known_nodes:
-                self.connection_graph.add_edge(known_node.id, known_node)
+                self.connection_graph.add_edge(node.id, known_node)
 
     def create_random_structured_communities(self):
         # Creates nodes community
