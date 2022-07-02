@@ -1,7 +1,0 @@
-count,pattern_type,period,min_amount,max_amount,min_accounts,max_accounts,scheduling
-200,gather_scatter,2,500,1000,10,12,Instant
-200,gather_scatter,2,500,4000,10,12,Instant
-200,gather_scatter,2,1000,5000,10,12,Instant
-100,gather_scatter,2,2500,7500,10,12,Instant
-50,gather_scatter,2,5000,10000,10,12,Instant
-50,gather_scatter,2,7500,12500,10,12,Instant
