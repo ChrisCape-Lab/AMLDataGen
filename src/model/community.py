@@ -118,6 +118,7 @@ class Community:
             comm_df.loc[len(comm_df.index)] = [in_deg, out_deg]
         comm_df = comm_df.groupby(['In-degree', 'Out-degree']).size().to_frame('Count').reset_index()
         comm_df = comm_df[['Count', 'In-degree', 'Out-degree']]
+        comm_df = comm_df.sort_values(by=['Count', 'In-degree', 'Out-degree'], ascending=[False, False, False])
 
         return comm_df.values.tolist()
 
@@ -189,6 +190,9 @@ class Community:
                 self.connection_graph.add_edge(node.id, known_node)
 
     def create_random_structured_communities(self):
+        connection_number = _v.COMM.DEF_MAX_KNOWN_NODES
+        self.connection_graph = nx.powerlaw_cluster_graph(n=len(self.nodes), m=connection_number, p=0.5)
+        """
         # Creates nodes community
         remaining_nodes = set(range(0, len(self.nodes)))
         community_id = 0
@@ -215,6 +219,7 @@ class Community:
         # Creating intra-communities connections
 
         # Creating inter-community connections
+        """
 
     def load_communities_from_deg_file(self, deg_file):
         """
